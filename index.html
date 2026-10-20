@@ -1,0 +1,2750 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GESTIÓN DE NOTIFICACIONES Y UNIFICACIÓN - CREDIBAN PERÚ</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        .excel-grid-table {
+            border-collapse: collapse;
+            user-select: none;
+        }
+        .excel-grid-table th, .excel-grid-table td {
+            border: 1px solid #cbd5e1;
+        }
+        .excel-cell-input {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            outline: none;
+            padding: 3px 6px;
+            font-size: 11px;
+        }
+        .excel-cell-input:focus {
+            background: #eff6ff;
+            box-shadow: inset 0 0 0 2px #16a34a;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // ============================================================================
+        // CONFIGURACIÓN DE RED DE USUARIOS Y CONSTANTES DEL SISTEMA
+        // ============================================================================
+        const USER_NETWORK_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyPGo-OSC0KZcz03bAMpKQ82cipc2T1LNztaI229FhYqqNNXqG1oSb6hPPgVSSU3piqiw/exec';
+        const INITIAL_ROW_COUNT = 350;
+        const EXPECTED_COLUMN_COUNT = 19;
+
+        const STORAGE_GRID_KEY = 'crediban_excel_grid_19cols_v2';
+        const STORAGE_STATUS_KEY = 'crediban_status_map_19cols_v2';
+        const STORAGE_SESSION_KEY = 'crediban_cajero_session_v2';
+        const STORAGE_USERS_CACHE_KEY = 'crediban_users_network_cache_v2';
+
+        // DEFINICIÓN EXACTA DE LAS 19 COLUMNAS DE LA HOJA EXCEL
+        const EXCEL_COLUMNS = [
+            { num: 1,  colLetter: 'B', key: 'cli',         label: 'CLI',           width: 'w-16', align: 'text-center' },
+            { num: 2,  colLetter: 'C', key: 'credito',     label: 'CREDITO',       width: 'w-20', align: 'text-center' },
+            { num: 3,  colLetter: 'D', key: 'nCuota',      label: 'N CUOTA',       width: 'w-16', align: 'text-center' },
+            { num: 4,  colLetter: 'E', key: 'cliente',     label: 'CLIENTE',       width: 'w-64', align: 'text-left' },
+            { num: 5,  colLetter: 'F', key: 'atraso',      label: 'ATRASO',        width: 'w-20', align: 'text-center' },
+            { num: 6,  colLetter: 'G', key: 'telefono',    label: 'TELEFONO',      width: 'w-28', align: 'text-center' },
+            { num: 7,  colLetter: 'H', key: 'saldoCuota',  label: 'SALDO- CUOTA',  width: 'w-28', align: 'text-right' },
+            { num: 8,  colLetter: 'I', key: 'saldoKCuota', label: 'SALDO K CUOTA', width: 'w-28', align: 'text-right' },
+            { num: 9,  colLetter: 'J', key: 'separador',   label: 'SEPARADOR',     width: 'w-20', align: 'text-center', isSeparator: true },
+            { num: 10, colLetter: 'K', key: 'totalSaldo',  label: 'TOTAL. SALDO',  width: 'w-28', align: 'text-right' },
+            { num: 11, colLetter: 'L', key: 'direccion',   label: 'DIRECCION',     width: 'w-56', align: 'text-left' },
+            { num: 12, colLetter: 'M', key: 'referencia',  label: 'S REFERENCIA',  width: 'w-48', align: 'text-left' },
+            { num: 13, colLetter: 'N', key: 'desembolso',  label: 'DESEMBOLSO',    width: 'w-28', align: 'text-right' },
+            { num: 14, colLetter: 'O', key: 'saldoKCred',  label: 'SALDO K CRED',  width: 'w-28', align: 'text-right' },
+            { num: 15, colLetter: 'P', key: 'plazo',       label: 'PLAZO',         width: 'w-24', align: 'text-center' },
+            { num: 16, colLetter: 'Q', key: 'cuotaOrig',   label: 'CUOTA ORIG',    width: 'w-28', align: 'text-right' },
+            { num: 17, colLetter: 'R', key: 'moraCuota',   label: 'MORA CUOTA',    width: 'w-28', align: 'text-right' },
+            { num: 18, colLetter: 'S', key: 'grupo',       label: 'GRUPO',         width: 'w-24', align: 'text-center' },
+            { num: 19, colLetter: 'T', key: 'asesor',      label: 'ASESOR',        width: 'w-40', align: 'text-left' }
+        ];
+
+        const createEmptyExcelRow = () => ({
+            cli: '', credito: '', nCuota: '', cliente: '', atraso: '', telefono: '',
+            saldoCuota: '', saldoKCuota: '', separador: '', totalSaldo: '', direccion: '', referencia: '',
+            desembolso: '', saldoKCred: '', plazo: '', cuotaOrig: '', moraCuota: '', grupo: '', asesor: ''
+        });
+
+        const isRowEmpty = (r) => !r || !Object.values(r).some(v => String(v || '').trim() !== '');
+
+        const createInitialEmptyGrid = (count = INITIAL_ROW_COUNT) =>
+            Array.from({ length: count }, () => createEmptyExcelRow());
+
+        const padGridToMinimum = (rows, minCount = INITIAL_ROW_COUNT) => {
+            if (rows.length >= minCount) return rows;
+            return [...rows, ...createInitialEmptyGrid(minCount - rows.length)];
+        };
+
+        const LLAMADA_OPTIONS = [
+            "Pendiente",
+            "Contestó Positivo",
+            "Promesa Pago",
+            "No Contesta",
+            "Nro. Equivocado",
+            "Bloqueado"
+        ];
+
+        const WA_OPTIONS = [
+            "Pendiente",
+            "Respondió",
+            "Promesa Pago",
+            "No Responde",
+            "Bloqueado"
+        ];
+
+        const priorityScore = (val) => {
+            if (!val) return 99;
+            if (val.includes('Promesa')) return 1;
+            if (val.includes('Positivo') || val.includes('Respondió')) return 2;
+            if (val === 'Pendiente') return 3;
+            if (val.includes('No Contesta') || val.includes('No Responde')) return 4;
+            return 5;
+        };
+
+        const getBestPriority = (client) => {
+            return Math.min(priorityScore(client.estadoLlamada), priorityScore(client.estadoWA));
+        };
+
+        const getDropdownColor = (val) => {
+            if (!val) return 'bg-white text-gray-700 border-gray-300';
+            if (val.includes('Positivo') || val.includes('Respondió')) return 'bg-green-100 text-green-800 border-green-300';
+            if (val.includes('Promesa')) return 'bg-blue-100 text-blue-800 border-blue-300';
+            if (val.includes('No Contesta') || val.includes('No Responde')) return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+            if (val.includes('Equivocado') || val.includes('Bloqueado')) return 'bg-red-100 text-red-800 border-red-300';
+            return 'bg-white text-gray-700 border-gray-300';
+        };
+
+        const stripEmojis = (str) => {
+            if (!str) return '';
+            return String(str).replace(/[📞📱🚫🚨✅⚠️💬📲⚡]/g, '').trim();
+        };
+
+        const toTitleCase = (str) => {
+            if (!str) return '';
+            return String(str).replace(/\w\S*/g, (txt) => {
+                return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+            }).replace(/\s+/g, ' ').trim();
+        };
+
+        const parseNumber = (val) => {
+            if (typeof val === 'number') return val;
+            if (val === null || val === undefined) return 0;
+            let cleaned = String(val).replace(/S\/|s\/|\$|,/g, '').replace(/\s+/g, '').trim();
+            if (cleaned.startsWith('.')) cleaned = '0' + cleaned;
+            const num = parseFloat(cleaned);
+            return isNaN(num) ? 0 : num;
+        };
+
+        const parseIntSafe = (val, fallback = NaN) => {
+            if (typeof val === 'number') return Math.trunc(val);
+            if (val === null || val === undefined) return fallback;
+            const cleaned = String(val).replace(/,/g, '').trim();
+            if (cleaned === '') return fallback;
+            const match = cleaned.match(/^(-?\d+)/);
+            return match ? parseInt(match[1], 10) : fallback;
+        };
+
+        const splitLineSafe = (line, separator) => {
+            if (separator === '\t') {
+                return line.split('\t').map(s => s.trim().replace(/^"|"$/g, ''));
+            }
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === separator && !inQuotes) {
+                    result.push(current);
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current);
+            return result.map(s => s.trim().replace(/^"|"$/g, ''));
+        };
+
+        // ============================================================================
+        // NORMALIZADOR INTELIGENTE DE RED DE USUARIOS (SOLO CATEGORÍA CAJERO)
+        // ============================================================================
+        const normalizeUsersFromPayload = (payload) => {
+            if (!payload) return [];
+            let rawList = [];
+
+            if (Array.isArray(payload)) {
+                rawList = payload;
+            } else if (typeof payload === 'object') {
+                const candidateKeys = ['usuarios', 'users', 'data', 'registros', 'personal', 'items', 'values', 'result'];
+                for (let k of candidateKeys) {
+                    if (Array.isArray(payload[k])) {
+                        rawList = payload[k];
+                        break;
+                    }
+                }
+                if (rawList.length === 0) {
+                    const firstArr = Object.values(payload).find(v => Array.isArray(v));
+                    if (firstArr) rawList = firstArr;
+                }
+            }
+
+            if (rawList.length === 0) return [];
+
+            const normalized = [];
+
+            // Si es una matriz 2D (filas de Google Sheets)
+            if (Array.isArray(rawList[0])) {
+                const firstRowUpper = rawList[0].map(c => String(c || '').toUpperCase().trim());
+                const hasHeaders = firstRowUpper.some(h =>
+                    h.includes('USUARIO') || h.includes('NOMBRE') || h.includes('CLAVE') || h.includes('CARGO') || h.includes('CATEGORIA') || h.includes('ROL')
+                );
+
+                let idxUser = 0, idxPass = 1, idxRole = 2, idxSede = 3, idxEstado = 4;
+                if (hasHeaders) {
+                    const fUser = firstRowUpper.findIndex(h => h.includes('USUARIO') || h.includes('NOMBRE') || h.includes('USER'));
+                    const fPass = firstRowUpper.findIndex(h => h.includes('CLAVE') || h.includes('CONTRASE') || h.includes('PASS') || h.includes('PIN'));
+                    const fRole = firstRowUpper.findIndex(h => h.includes('CATEGORIA') || h.includes('CARGO') || h.includes('ROL') || h.includes('RANGO') || h.includes('PUESTO') || h.includes('TIPO'));
+                    const fSede = firstRowUpper.findIndex(h => h.includes('SEDE') || h.includes('AGENCIA') || h.includes('OFICINA'));
+                    const fEst  = firstRowUpper.findIndex(h => h.includes('ESTADO') || h.includes('ACTIVO'));
+
+                    if (fUser !== -1) idxUser = fUser;
+                    if (fPass !== -1) idxPass = fPass;
+                    if (fRole !== -1) idxRole = fRole;
+                    if (fSede !== -1) idxSede = fSede;
+                    if (fEst !== -1)  idxEstado = fEst;
+                }
+
+                const startIdx = hasHeaders ? 1 : 0;
+                for (let i = startIdx; i < rawList.length; i++) {
+                    const r = rawList[i];
+                    if (!Array.isArray(r) || r.length === 0) continue;
+                    const usuario = String(r[idxUser] ?? '').trim();
+                    const clave = String(r[idxPass] ?? '').trim();
+                    let categoria = String(r[idxRole] ?? '').trim();
+                    const sede = String(r[idxSede] ?? 'General').trim();
+                    const estado = String(r[idxEstado] ?? 'ACTIVO').trim().toUpperCase();
+
+                    // Si la categoría estaba en otra columna, buscar si alguna celda dice CAJERO / ASESOR / GERENTE / ADMINISTRADOR
+                    if (!categoria || (!categoria.toUpperCase().includes('CAJ') && !categoria.toUpperCase().includes('ASESOR') && !categoria.toUpperCase().includes('ADMIN') && !categoria.toUpperCase().includes('GERENT') && !categoria.toUpperCase().includes('TRABAJ'))) {
+                        const foundRoleCell = r.find(cell => {
+                            const u = String(cell || '').toUpperCase().trim();
+                            return u.includes('CAJER') || u === 'CAJA' || u.includes('ASESOR') || u.includes('ADMIN') || u.includes('GERENT') || u.includes('TRABAJ');
+                        });
+                        if (foundRoleCell) categoria = String(foundRoleCell).trim();
+                    }
+
+                    if (usuario && estado !== 'INACTIVO' && estado !== 'BAJA') {
+                        normalized.push({ usuario, clave, categoria: categoria || 'CAJERO', sede });
+                    }
+                }
+            } else {
+                // Si es un arreglo de objetos JSON
+                rawList.forEach(obj => {
+                    if (!obj || typeof obj !== 'object') return;
+                    const keys = Object.keys(obj);
+                    const getByKeyMatch = (patterns) => {
+                        for (let p of patterns) {
+                            const k = keys.find(key => key.toUpperCase().includes(p));
+                            if (k && obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== '') {
+                                return String(obj[k]).trim();
+                            }
+                        }
+                        return '';
+                    };
+
+                    const usuario = getByKeyMatch(['USUARIO', 'NOMBRE', 'USER', 'CLIENTE', 'TRABAJADOR']);
+                    const clave = getByKeyMatch(['CLAVE', 'CONTRASE', 'PASS', 'PIN', 'CODIGO']);
+                    let categoria = getByKeyMatch(['CATEGORIA', 'CARGO', 'ROL', 'RANGO', 'TIPO', 'PUESTO', 'NIVEL']);
+                    const sede = getByKeyMatch(['SEDE', 'AGENCIA', 'OFICINA', 'ZONA']) || 'General';
+                    const estado = getByKeyMatch(['ESTADO', 'STATUS', 'ACTIVO']).toUpperCase();
+
+                    if (!categoria) {
+                        const anyRoleVal = Object.values(obj).find(val => {
+                            const u = String(val || '').toUpperCase().trim();
+                            return u.includes('CAJER') || u === 'CAJA' || u.includes('ASESOR') || u.includes('ADMIN') || u.includes('GERENT') || u.includes('TRABAJ');
+                        });
+                        if (anyRoleVal) categoria = String(anyRoleVal).trim();
+                    }
+
+                    if (usuario && estado !== 'INACTIVO' && estado !== 'BAJA') {
+                        normalized.push({ usuario, clave, categoria: categoria || 'SIN CATEGORIA', sede });
+                    }
+                });
+            }
+
+            return normalized;
+        };
+
+        const isCajeroRole = (categoriaStr) => {
+            const upper = String(categoriaStr || '').toUpperCase().trim();
+            return upper.includes('CAJER') || upper === 'CAJA' || upper.includes('GESTOR DE CAJA');
+        };
+
+        // ============================================================================
+        // DECODIFICADOR DE TEXTO PEGADO DE EXCEL A LAS 19 COLUMNAS
+        // ============================================================================
+        const convertPastedTextToExcelRows = (rawText) => {
+            if (!rawText || !rawText.trim()) return { rows: [], maxColsDetected: 0, incompleteRowsCount: 0 };
+            const lines = rawText.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (lines.length === 0) return { rows: [], maxColsDetected: 0, incompleteRowsCount: 0 };
+
+            const firstNonEmpty = lines[0];
+            let sep = '\t';
+            if (!firstNonEmpty.includes('\t')) {
+                sep = firstNonEmpty.includes(';') ? ';' : ',';
+            }
+
+            let headerRowIdx = -1;
+            for (let i = 0; i < Math.min(8, lines.length); i++) {
+                const upper = lines[i].toUpperCase();
+                if (
+                    (upper.includes('CREDITO') || upper.includes('CREDIT')) &&
+                    (upper.includes('ATRASO') || upper.includes('ATRAS'))
+                ) {
+                    headerRowIdx = i;
+                    break;
+                }
+            }
+
+            const startIdx = headerRowIdx !== -1 ? headerRowIdx + 1 : 0;
+            const parsedGridRows = [];
+            let maxColsDetected = 0;
+            let incompleteRowsCount = 0;
+
+            for (let i = startIdx; i < lines.length; i++) {
+                const cols = splitLineSafe(lines[i], sep);
+                if (cols.every(c => !c || c.trim() === '')) continue;
+
+                if (cols.length > maxColsDetected) {
+                    maxColsDetected = cols.length;
+                }
+
+                const joinedUpper = cols.join(' ').toUpperCase();
+                if (!joinedUpper.includes('ASESOR:') && cols.length < EXPECTED_COLUMN_COUNT) {
+                    incompleteRowsCount += 1;
+                }
+
+                parsedGridRows.push({
+                    cli:         cols[0]  || '',
+                    credito:     cols[1]  || '',
+                    nCuota:      cols[2]  || '',
+                    cliente:     cols[3]  || '',
+                    atraso:      cols[4]  || '',
+                    telefono:    cols[5]  || '',
+                    saldoCuota:  cols[6]  || '',
+                    saldoKCuota: cols[7]  || '',
+                    separador:   cols[8]  || '',
+                    totalSaldo:  cols[9]  || '',
+                    direccion:   cols[10] || '',
+                    referencia:  cols[11] || '',
+                    desembolso:  cols[12] || '',
+                    saldoKCred:  cols[13] || '',
+                    plazo:       cols[14] || '',
+                    cuotaOrig:   cols[15] || '',
+                    moraCuota:   cols[16] || '',
+                    grupo:       cols[17] || '',
+                    asesor:      cols[18] || ''
+                });
+            }
+
+            return { rows: parsedGridRows, maxColsDetected, incompleteRowsCount };
+        };
+
+        const auditGridColumns = (gridRows) => {
+            const activeRows = gridRows.filter(r => !isRowEmpty(r));
+            if (activeRows.length === 0) return null;
+
+            const mainRows = activeRows.filter(r => {
+                const joined = Object.values(r).join(' ').toUpperCase();
+                if (joined.includes('ASESOR:')) return false;
+                return String(r.cli || '').trim() !== '' || String(r.cliente || '').trim() !== '' || String(r.credito || '').trim() !== '';
+            });
+
+            if (mainRows.length === 0) return null;
+
+            const missingColsSet = new Set();
+            mainRows.forEach(r => {
+                if (!String(r.cli || '').trim()) missingColsSet.add('1. CLI');
+                if (!String(r.credito || '').trim()) missingColsSet.add('2. CREDITO');
+                if (!String(r.nCuota || '').trim()) missingColsSet.add('3. N CUOTA');
+                if (!String(r.cliente || '').trim()) missingColsSet.add('4. CLIENTE');
+                if (String(r.atraso ?? '').trim() === '') missingColsSet.add('5. ATRASO');
+                if (!String(r.telefono || '').trim()) missingColsSet.add('6. TELEFONO');
+                if (!String(r.saldoCuota || '').trim()) missingColsSet.add('7. SALDO- CUOTA');
+                if (!String(r.saldoKCuota || '').trim()) missingColsSet.add('8. SALDO K CUOTA');
+                if (!String(r.totalSaldo || '').trim()) missingColsSet.add('10. TOTAL. SALDO');
+                if (!String(r.direccion || '').trim()) missingColsSet.add('11. DIRECCION');
+                if (!String(r.desembolso || '').trim()) missingColsSet.add('13. DESEMBOLSO');
+                if (!String(r.saldoKCred || '').trim()) missingColsSet.add('14. SALDO K CRED');
+                if (!String(r.plazo || '').trim()) missingColsSet.add('15. PLAZO');
+                if (!String(r.cuotaOrig || '').trim()) missingColsSet.add('16. CUOTA ORIG');
+                if (String(r.moraCuota ?? '').trim() === '') missingColsSet.add('17. MORA CUOTA');
+            });
+
+            const anyAsesor = activeRows.some(r =>
+                String(r.asesor || '').trim() !== '' ||
+                Object.values(r).join(' ').toUpperCase().includes('ASESOR:')
+            );
+            if (!anyAsesor) {
+                missingColsSet.add('19. ASESOR');
+            }
+
+            if (missingColsSet.size === 0) return null;
+            return Array.from(missingColsSet);
+        };
+
+        // ============================================================================
+        // MOTOR DE UNIFICACIÓN DESDE LAS 19 COLUMNAS DE LA HOJA EXCEL
+        // ============================================================================
+        const unifyFromExcelGrid = (gridRows, statusMap = {}) => {
+            const normalizedInstallments = [];
+
+            let currentCli = '';
+            let currentCredito = '';
+            let currentCliente = 'Desconocido';
+            let currentTelefono = 'Sin número';
+            let currentDireccion = '';
+            let currentReferencia = '';
+            let currentDesembolso = 0;
+            let currentSaldoKCred = 0;
+            let currentTotalSaldo = 0;
+            let currentPlazo = '';
+            let currentGrupo = '';
+            let currentAsesor = 'Sin Asesor';
+            let creditBlockCounter = 0;
+            let lastRowHadBlankClient = false;
+
+            for (let i = 0; i < gridRows.length; i++) {
+                const row = gridRows[i];
+                if (isRowEmpty(row)) continue;
+
+                const rowValuesJoined = Object.values(row).join(' ');
+                if (rowValuesJoined.toUpperCase().includes('ASESOR:')) {
+                    const cellWithAsesor = Object.values(row).find(v => v && String(v).toUpperCase().includes('ASESOR:'));
+                    if (cellWithAsesor) {
+                        currentAsesor = String(cellWithAsesor).replace(/ASESOR:/i, '').trim() || 'Sin Asesor';
+                    }
+                    continue;
+                }
+
+                const rawCliente = String(row.cliente || '').trim();
+                const rawCredito = String(row.credito || '').trim();
+                const rawCli = String(row.cli || '').trim();
+                const rawAsesor = String(row.asesor || '').trim();
+
+                if (rawCliente.toUpperCase() === 'CLIENTE' || String(row.atraso).toUpperCase() === 'ATRASO') {
+                    continue;
+                }
+
+                let startsNewCreditBlock = false;
+                if (rawCredito !== '' && rawCredito !== currentCredito) {
+                    startsNewCreditBlock = true;
+                } else if (rawCliente !== '' && rawCliente.toUpperCase() !== currentCliente.toUpperCase()) {
+                    startsNewCreditBlock = true;
+                } else if (rawCliente !== '' && lastRowHadBlankClient) {
+                    startsNewCreditBlock = true;
+                }
+
+                if (startsNewCreditBlock) {
+                    creditBlockCounter += 1;
+                    if (rawCliente !== '') currentCliente = rawCliente.replace(/\s+/g, ' ');
+                    if (rawCli !== '') currentCli = rawCli;
+                    currentCredito = rawCredito || `LINEA_${creditBlockCounter}`;
+                    currentDesembolso = 0;
+                    currentSaldoKCred = 0;
+                    currentTotalSaldo = 0;
+                    currentPlazo = '';
+                }
+
+                lastRowHadBlankClient = (rawCliente === '');
+
+                if (rawCliente !== '') currentCliente = rawCliente.replace(/\s+/g, ' ');
+                if (rawCli !== '') currentCli = rawCli;
+                if (rawCredito !== '') currentCredito = rawCredito;
+                if (row.telefono && String(row.telefono).trim() !== '') currentTelefono = String(row.telefono).trim();
+                if (row.direccion && String(row.direccion).trim() !== '') currentDireccion = String(row.direccion).trim();
+                if (row.referencia && String(row.referencia).trim() !== '') currentReferencia = String(row.referencia).trim();
+                if (row.grupo && String(row.grupo).trim() !== '') currentGrupo = String(row.grupo).trim();
+                if (rawAsesor !== '') currentAsesor = rawAsesor;
+
+                const desembolsoVal = parseNumber(row.desembolso);
+                if (desembolsoVal > 0) currentDesembolso = desembolsoVal;
+
+                const saldoKCredVal = parseNumber(row.saldoKCred);
+                if (saldoKCredVal > 0) currentSaldoKCred = saldoKCredVal;
+
+                const totalSaldoVal = parseNumber(row.totalSaldo);
+                if (totalSaldoVal > 0) currentTotalSaldo = totalSaldoVal;
+
+                if (row.plazo && String(row.plazo).trim() !== '') {
+                    currentPlazo = String(row.plazo).trim();
+                }
+
+                const nCuota = parseIntSafe(row.nCuota, 0);
+                const atraso = parseIntSafe(row.atraso, NaN);
+                const cuotaOrig = parseNumber(row.cuotaOrig);
+                const moraCuota = parseNumber(row.moraCuota);
+                const saldoCuotaRaw = parseNumber(row.saldoCuota);
+                const saldoKCuota = parseNumber(row.saldoKCuota);
+
+                const saldoCuota = saldoCuotaRaw > 0 ? saldoCuotaRaw : (cuotaOrig + moraCuota);
+                const finalCuotaOrig = cuotaOrig > 0 ? cuotaOrig : Math.max(0, saldoCuota - moraCuota);
+                const finalMora = moraCuota > 0 ? moraCuota : Math.max(0, saldoCuota - finalCuotaOrig);
+
+                let plazoTotalNum = 0;
+                if (currentPlazo) {
+                    const match = String(currentPlazo).match(/(\d+)/);
+                    if (match) plazoTotalNum = parseInt(match[1], 10);
+                }
+
+                if (!isNaN(atraso) && saldoCuota > 0 && currentCliente !== 'Desconocido') {
+                    normalizedInstallments.push({
+                        rowIndexInGrid: i,
+                        cli: currentCli,
+                        credito: currentCredito || `BLK_${creditBlockCounter}`,
+                        blockId: creditBlockCounter,
+                        nCuota,
+                        cliente: currentCliente,
+                        atraso,
+                        telefono: currentTelefono,
+                        saldoCuota,
+                        saldoKCuota,
+                        totalSaldo: currentTotalSaldo,
+                        direccion: currentDireccion,
+                        referencia: currentReferencia,
+                        desembolso: currentDesembolso,
+                        saldoKCred: currentSaldoKCred,
+                        plazoRaw: currentPlazo || (plazoTotalNum > 0 ? `${plazoTotalNum} cuotas` : '-'),
+                        plazoTotal: plazoTotalNum,
+                        cuotaOrig: finalCuotaOrig,
+                        moraCuota: finalMora,
+                        grupo: currentGrupo,
+                        asesor: currentAsesor
+                    });
+                }
+            }
+
+            const grouped = {};
+            normalizedInstallments.forEach(item => {
+                const clientCleanKey = item.cliente.toUpperCase().trim();
+                const creditKey = `${clientCleanKey}__${item.credito}`;
+
+                if (!grouped[creditKey]) {
+                    const savedState = statusMap[creditKey] || {};
+                    grouped[creditKey] = {
+                        id: creditKey,
+                        clientKey: clientCleanKey,
+                        cli: item.cli,
+                        credito: item.credito.startsWith('LINEA_') || item.credito.startsWith('BLK_') ? '' : item.credito,
+                        nombre: item.cliente,
+                        celular: item.telefono,
+                        direccion: item.direccion,
+                        referencia: item.referencia,
+                        grupo: item.grupo,
+                        asesor: item.asesor,
+                        plazoRaw: item.plazoRaw,
+
+                        montoDesembolsado: 0,
+                        saldoCapital: 0,
+                        sumaSaldoKCuotas: 0,
+                        totalSaldoReportado: 0,
+                        cuotaBase: 0,
+                        deudaTotalRestante: 0,
+
+                        cuotaOriginalVencida: 0,
+                        moraGeneradaVencida: 0,
+                        totalCobrarHoy: 0,
+                        montoPorVencerFuturo: 0,
+
+                        cuotaMasAntiguaBase: 0,
+                        cuotaMasAntiguaTotal: 0,
+
+                        cuotasAtrasadas: 0,
+                        cuotasVenceHoy: 0,
+                        cuotasPorVencer: 0,
+                        totalCuotasPendientes: 0,
+
+                        maxAtraso: -9999,
+                        minCuotaPendiente: 9999,
+                        plazoTotalCredito: 0,
+
+                        cuotasDetalle: [],
+                        gridRowIndices: [],
+
+                        estadoLlamada: savedState.estadoLlamada || 'Pendiente',
+                        estadoWA: savedState.estadoWA || 'Pendiente',
+                        selected: savedState.selected || false
+                    };
+                }
+
+                const g = grouped[creditKey];
+                g.gridRowIndices.push(item.rowIndexInGrid);
+
+                g.cuotasDetalle.push({
+                    nCuota: item.nCuota || (g.cuotasDetalle.length + 1),
+                    atraso: item.atraso,
+                    cuotaOrig: item.cuotaOrig,
+                    moraCuota: item.moraCuota,
+                    saldoCuota: item.saldoCuota,
+                    saldoKCuota: item.saldoKCuota
+                });
+
+                if (item.desembolso > g.montoDesembolsado) g.montoDesembolsado = item.desembolso;
+                if (item.saldoKCred > g.saldoCapital) g.saldoCapital = item.saldoKCred;
+                if (item.totalSaldo > g.totalSaldoReportado) g.totalSaldoReportado = item.totalSaldo;
+                if (item.cuotaOrig > g.cuotaBase) g.cuotaBase = item.cuotaOrig;
+                g.sumaSaldoKCuotas += item.saldoKCuota;
+
+                if (item.atraso > g.maxAtraso) {
+                    g.maxAtraso = item.atraso;
+                    g.cuotaMasAntiguaBase = item.cuotaOrig;
+                    g.cuotaMasAntiguaTotal = item.saldoCuota;
+                }
+
+                if (item.nCuota > 0 && item.nCuota < g.minCuotaPendiente) {
+                    g.minCuotaPendiente = item.nCuota;
+                }
+                if (item.plazoTotal > g.plazoTotalCredito) {
+                    g.plazoTotalCredito = item.plazoTotal;
+                }
+
+                g.deudaTotalRestante += item.saldoCuota;
+                g.totalCuotasPendientes += 1;
+
+                if (item.atraso > 0) {
+                    g.cuotasAtrasadas += 1;
+                    g.totalCobrarHoy += item.saldoCuota;
+                    g.cuotaOriginalVencida += item.cuotaOrig;
+                    g.moraGeneradaVencida += item.moraCuota;
+                } else if (item.atraso === 0) {
+                    g.cuotasVenceHoy += 1;
+                    g.totalCobrarHoy += item.saldoCuota;
+                    g.cuotaOriginalVencida += item.cuotaOrig;
+                    g.moraGeneradaVencida += item.moraCuota;
+                } else {
+                    g.cuotasPorVencer += 1;
+                    g.montoPorVencerFuturo += item.saldoCuota;
+                }
+            });
+
+            const byClient = {};
+            Object.values(grouped).forEach(line => {
+                if (!byClient[line.clientKey]) byClient[line.clientKey] = [];
+                byClient[line.clientKey].push(line);
+            });
+
+            return Object.values(grouped).map(client => {
+                if (client.saldoCapital === 0 && client.sumaSaldoKCuotas > 0) {
+                    client.saldoCapital = client.sumaSaldoKCuotas;
+                }
+
+                const siblings = byClient[client.clientKey] || [client];
+                client.tieneParalela = siblings.length > 1;
+                client.totalLineasCliente = siblings.length;
+                client.numeroLinea = siblings.findIndex(s => s.id === client.id) + 1;
+                client.otrasLineasResumen = siblings
+                    .filter(s => s.id !== client.id)
+                    .map(s => ({
+                        credito: s.credito,
+                        desembolso: s.montoDesembolsado,
+                        plazoRaw: s.plazoRaw,
+                        maxAtraso: s.maxAtraso,
+                        totalCobrarHoy: s.totalCobrarHoy
+                    }));
+
+                if (client.maxAtraso > 0) client.condicion = 'En Mora';
+                else if (client.maxAtraso === 0) client.condicion = 'Vence Hoy';
+                else client.condicion = 'Por Vencer';
+
+                client.cuotasDetalle.sort((a, b) => b.atraso - a.atraso || a.nCuota - b.nCuota);
+
+                const cuotasPagadas = client.minCuotaPendiente === 9999 ? 0 : Math.max(0, client.minCuotaPendiente - 1);
+                client.avancePorcentaje = client.plazoTotalCredito > 0
+                    ? Math.min(100, (cuotasPagadas / client.plazoTotalCredito) * 100)
+                    : 0;
+
+                const cuotasRestantes = client.plazoTotalCredito > 0
+                    ? Math.max(client.totalCuotasPendientes, client.plazoTotalCredito - cuotasPagadas)
+                    : client.totalCuotasPendientes;
+
+                client.montoCancelarCapInt = (cuotasRestantes * client.cuotaBase) > 0
+                    ? (cuotasRestantes * client.cuotaBase)
+                    : client.deudaTotalRestante;
+
+                return client;
+            }).sort((a, b) => b.totalCobrarHoy - a.totalCobrarHoy || b.maxAtraso - a.maxAtraso);
+        };
+
+        // FILA MEMOIZADA DE LA HOJA EXCEL PARA 350+ FILAS RÁPIDAS
+        const ExcelRowItem = React.memo(({ row, rIdx, onCellChange, onDeleteRow }) => {
+            const atrasoNum = parseIntSafe(row.atraso, NaN);
+            const isRowSeparator = Object.values(row).join(' ').toUpperCase().includes('ASESOR:');
+
+            return (
+                <tr
+                    className={
+                        isRowSeparator
+                            ? 'bg-blue-50 font-bold'
+                            : rIdx % 2 === 1
+                            ? 'bg-slate-50/60'
+                            : 'bg-white'
+                    }
+                >
+                    <td className="bg-slate-100 text-slate-500 text-[11px] font-bold text-center px-2 py-0.5 select-none">
+                        {rIdx + 1}
+                    </td>
+
+                    {EXCEL_COLUMNS.map(col => {
+                        let extraClass = col.align;
+                        if (col.isSeparator) {
+                            extraClass += ' bg-amber-50/70 text-amber-800 font-bold';
+                        } else if (col.key === 'atraso' && !isNaN(atrasoNum)) {
+                            if (atrasoNum > 0) extraClass += ' bg-red-50 text-red-700 font-extrabold';
+                            else if (atrasoNum === 0) extraClass += ' bg-yellow-50 text-yellow-800 font-extrabold';
+                            else extraClass += ' bg-emerald-50 text-emerald-700 font-bold';
+                        } else if (col.key === 'saldoCuota' || col.key === 'cuotaOrig' || col.key === 'moraCuota') {
+                            extraClass += ' font-semibold text-slate-800';
+                        } else if (col.key === 'cliente' && row.cliente) {
+                            extraClass += ' font-bold text-slate-900';
+                        }
+
+                        return (
+                            <td key={col.key} className="p-0">
+                                <input
+                                    type="text"
+                                    value={row[col.key] || ''}
+                                    onChange={(e) => onCellChange(rIdx, col.key, e.target.value)}
+                                    className={`excel-cell-input ${extraClass}`}
+                                    placeholder={rIdx === 0 ? col.label : ''}
+                                />
+                            </td>
+                        );
+                    })}
+
+                    <td className="text-center px-1">
+                        <button
+                            onClick={() => onDeleteRow(rIdx)}
+                            title="Vaciar esta fila"
+                            className="text-slate-400 hover:text-red-600 text-xs font-bold"
+                        >
+                            ✕
+                        </button>
+                    </td>
+                </tr>
+            );
+        });
+
+        const formatPhoneNumber = (phone) => {
+            let cleaned = String(phone || '').replace(/\D/g, '');
+            if (cleaned.length === 9) cleaned = '51' + cleaned;
+            return cleaned;
+        };
+
+        const getMoraColor = (val) => {
+            if (val < 0) return { bg: [220, 252, 231], text: [22, 101, 52] };
+            if (val === 0) return { bg: [254, 240, 138], text: [133, 77, 14] };
+            if (val <= 3) return { bg: [254, 202, 202], text: [153, 27, 27] };
+            if (val <= 10) return { bg: [252, 165, 165], text: [153, 27, 27] };
+            if (val <= 30) return { bg: [248, 113, 113], text: [127, 29, 29] };
+            return { bg: [220, 38, 38], text: [255, 255, 255] };
+        };
+
+        const LogoSVG = ({ className }) => (
+            <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 240">
+                <g fill="#59B447">
+                    <rect x="90" y="8" width="24" height="13" rx="6.5"/>
+                    <rect x="71" y="31" width="61" height="13" rx="6.5"/>
+                    <rect x="50" y="55" width="74" height="13" rx="6.5"/>
+                    <rect x="31" y="79" width="75" height="13" rx="6.5"/>
+                    <rect x="24" y="103" width="63" height="13" rx="6.5"/>
+                    <rect x="37" y="128" width="24" height="13" rx="6.5"/>
+                    <path d="M143 55 C141 78 130 95 111 107 C96 117 81 122 72 134 C62 147 63 166 70 181 C76 195 87 208 97 216 C107 201 118 189 131 177 C144 166 157 156 164 141 C173 123 173 104 168 89 C164 74 156 62 143 55 Z"/>
+                </g>
+            </svg>
+        );
+
+        // ============================================================================
+        // PANTALLA DE BLOQUEO CONECTADA A LA RED DE USUARIOS (SOLO CATEGORÍA CAJERO)
+        // ============================================================================
+        function LoginScreen({ onLoginSuccess, usersList, isLoadingUsers, syncError, onRetrySync }) {
+            const [username, setUsername] = React.useState('');
+            const [password, setPassword] = React.useState('');
+            const [rememberMe, setRememberMe] = React.useState(true);
+            const [authError, setAuthError] = React.useState('');
+            const [isValidating, setIsValidating] = React.useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setAuthError('');
+                const cleanUser = username.trim();
+                const cleanPass = password.trim();
+
+                if (!cleanUser || !cleanPass) {
+                    setAuthError('Ingrese su usuario y contraseña para continuar.');
+                    return;
+                }
+
+                setIsValidating(true);
+
+                // 1. Validar contra la lista descargada del Script de Red de Usuarios
+                if (usersList && usersList.length > 0) {
+                    const matchedUser = usersList.find(u =>
+                        u.usuario.toUpperCase() === cleanUser.toUpperCase() &&
+                        String(u.clave) === String(cleanPass)
+                    );
+
+                    if (matchedUser) {
+                        if (!isCajeroRole(matchedUser.categoria)) {
+                            setIsValidating(false);
+                            setAuthError(`⛔ ACCESO RESTRINGIDO: El usuario "${matchedUser.usuario}" pertenece a la categoría "${matchedUser.categoria}". Solo usuarios con categoría CAJERO pueden ingresar.`);
+                            return;
+                        }
+                        setIsValidating(false);
+                        onLoginSuccess(matchedUser, rememberMe);
+                        return;
+                    }
+                }
+
+                // 2. Intentar validación directa por POST/GET al Script por si el endpoint valida individualmente
+                try {
+                    const queryUrl = `${USER_NETWORK_SCRIPT_URL}?action=login&usuario=${encodeURIComponent(cleanUser)}&clave=${encodeURIComponent(cleanPass)}`;
+                    const res = await fetch(queryUrl);
+                    if (res.ok) {
+                        const data = await res.json();
+                        const extracted = normalizeUsersFromPayload(data);
+                        if (extracted.length > 0) {
+                            const found = extracted.find(u =>
+                                u.usuario.toUpperCase() === cleanUser.toUpperCase() &&
+                                String(u.clave) === String(cleanPass)
+                            );
+                            if (found) {
+                                if (!isCajeroRole(found.categoria)) {
+                                    setIsValidating(false);
+                                    setAuthError(`⛔ ACCESO RESTRINGIDO: Tu categoría es "${found.categoria}". Solo la categoría CAJERO está autorizada.`);
+                                    return;
+                                }
+                                setIsValidating(false);
+                                onLoginSuccess(found, rememberMe);
+                                return;
+                            }
+                        } else if (data && (data.success || data.ok || data.estado === 'exito' || data.status === 'ok')) {
+                            const roleReturned = data.categoria || data.cargo || data.rol || data.rango || 'CAJERO';
+                            if (!isCajeroRole(roleReturned)) {
+                                setIsValidating(false);
+                                setAuthError(`⛔ ACCESO RESTRINGIDO: Tu categoría es "${roleReturned}". Solo la categoría CAJERO está autorizada.`);
+                                return;
+                            }
+                            setIsValidating(false);
+                            onLoginSuccess({
+                                usuario: data.usuario || cleanUser,
+                                clave: cleanPass,
+                                categoria: roleReturned,
+                                sede: data.sede || 'General'
+                            }, rememberMe);
+                            return;
+                        }
+                    }
+                } catch (err) {
+                    // Continuar a verificación de respaldo si falla la red
+                }
+
+                // 3. Respaldo Maestro de Caja en caso de caída de red o acceso maestro de Caja
+                if ((cleanUser.toUpperCase() === 'CAJERO' || cleanUser.toUpperCase() === 'CAJA' || cleanUser.toUpperCase() === 'ADMINCAJA') && cleanPass === 'CREDICAJA123') {
+                    setIsValidating(false);
+                    onLoginSuccess({
+                        usuario: cleanUser.toUpperCase(),
+                        clave: cleanPass,
+                        categoria: 'CAJERO',
+                        sede: 'SEDE CENTRAL'
+                    }, rememberMe);
+                    return;
+                }
+
+                setIsValidating(false);
+                setAuthError('Usuario o contraseña incorrectos, o no pertenece a la categoría CAJERO.');
+            };
+
+            const cajerosCount = (usersList || []).filter(u => isCajeroRole(u.categoria)).length;
+
+            return (
+                <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans">
+                    <div className="bg-white max-w-md w-full p-8 rounded-2xl shadow-2xl border-t-[6px] border-[#16a34a]">
+                        <div className="flex justify-center mb-4">
+                            <LogoSVG className="h-20 w-auto" />
+                        </div>
+                        <h2 className="text-[22px] font-extrabold text-[#0f172a] text-center mb-1">
+                            Acceso Exclusivo - Caja
+                        </h2>
+                        <p className="text-gray-500 text-xs text-center mb-4">
+                            Gestión de Notificaciones y Unificación - CREDIBAN PERÚ
+                        </p>
+
+                        {/* Estado de Red de Usuarios */}
+                        <div className="mb-5 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                            {isLoadingUsers ? (
+                                <span className="text-blue-700 font-semibold flex items-center gap-2">
+                                    🔄 Sincronizando Red de Usuarios...
+                                </span>
+                            ) : syncError ? (
+                                <span className="text-amber-700 font-semibold">
+                                    ⚠️ Red en modo caché ({usersList.length} usuarios)
+                                </span>
+                            ) : (
+                                <span className="text-emerald-700 font-bold">
+                                    🟢 Red Conectada ({cajerosCount > 0 ? `${cajerosCount} Cajeros activos` : `${usersList.length} usuarios`})
+                                </span>
+                            )}
+                            <button
+                                type="button"
+                                onClick={onRetrySync}
+                                className="text-[11px] text-slate-600 hover:text-green-700 font-bold underline"
+                            >
+                                Actualizar
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-extrabold text-slate-700 uppercase mb-1">
+                                    👤 Usuario (Categoría Cajero)
+                                </label>
+                                <input
+                                    type="text"
+                                    list="cajeros-datalist"
+                                    placeholder="Ingrese su usuario..."
+                                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:outline-none focus:border-[#16a34a] text-slate-800 font-semibold text-sm"
+                                    value={username}
+                                    onChange={(e) => { setUsername(e.target.value); setAuthError(''); }}
+                                    autoFocus
+                                />
+                                <datalist id="cajeros-datalist">
+                                    {(usersList || []).filter(u => isCajeroRole(u.categoria)).map((u, idx) => (
+                                        <option key={idx} value={u.usuario}>{u.categoria} - {u.sede}</option>
+                                    ))}
+                                </datalist>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-extrabold text-slate-700 uppercase mb-1">
+                                    🔒 Contraseña
+                                </label>
+                                <input
+                                    type="password"
+                                    placeholder="Ingrese su contraseña..."
+                                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:outline-none focus:border-[#16a34a] text-slate-800 font-semibold text-sm"
+                                    value={password}
+                                    onChange={(e) => { setPassword(e.target.value); setAuthError(''); }}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs text-slate-600 pt-1">
+                                <label className="flex items-center gap-2 cursor-pointer font-medium">
+                                    <input
+                                        type="checkbox"
+                                        checked={rememberMe}
+                                        onChange={(e) => setRememberMe(e.target.checked)}
+                                        className="w-4 h-4 text-green-600 rounded"
+                                    />
+                                    Mantener sesión iniciada
+                                </label>
+                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold text-[10px]">
+                                    SOLO CAJEROS
+                                </span>
+                            </div>
+
+                            {authError && (
+                                <div className="p-3 rounded-xl bg-red-50 border border-red-300 text-red-700 text-xs font-bold leading-relaxed">
+                                    {authError}
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={isValidating}
+                                className="w-full bg-[#16a34a] hover:bg-[#15803d] disabled:bg-slate-400 text-white font-extrabold py-3.5 px-4 rounded-xl shadow-md transition-colors text-[15px]"
+                            >
+                                {isValidating ? 'Verificando credenciales...' : 'Ingresar al Sistema'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        const DEFAULT_TEMPLATE = `Estimado cliente: \n*{nombre}*\nEl area especializada de cobranza de CREDIBAN, le hace recordar que tiene {cuotasMora} cuota(s) pendiente(s) de pago lo cual esta generando interes moratorio.\nContactar con su asesor de credito.\nSiempre atento a brindarle asesoramiento continuo.\nSi ejecuto su pago omite el mensaje.\nCREDIBAN, creciendo contigo.`;
+
+        function CobranzasDashboard({ currentUser, usersList, onLogout }) {
+            // Inicializar con 350 filas por defecto
+            const [gridRows, setGridRows] = React.useState(() => {
+                try {
+                    const saved = localStorage.getItem(STORAGE_GRID_KEY);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            return padGridToMinimum(parsed, INITIAL_ROW_COUNT);
+                        }
+                    }
+                } catch (e) {}
+                return createInitialEmptyGrid(INITIAL_ROW_COUNT);
+            });
+
+            // Historial de Bloques Pegados para poder Deshacer / Eliminar el último bloque añadido
+            const [batchHistory, setBatchHistory] = React.useState([]);
+
+            const [statusMap, setStatusMap] = React.useState(() => {
+                try {
+                    const saved = localStorage.getItem(STORAGE_STATUS_KEY);
+                    return saved ? JSON.parse(saved) : {};
+                } catch (e) {
+                    return {};
+                }
+            });
+
+            const [columnWarning, setColumnWarning] = React.useState(null);
+
+            // Control de columnas visibles en el Panel Web (por defecto ocultamos Desembolso y C. Original Vencida para dar espacio a 1ra Cuota Sin Mora y 1ra Cuota Con Mora)
+            const [visibleCols, setVisibleCols] = React.useState({
+                avance: true,
+                cancelarCapital: true,
+                cancelarCapInt: true,
+                primeraCuotaSinMora: true,
+                primeraCuotaConMora: true,
+                cuotaOrigVencida: false,
+                intMora: true,
+                desembolso: false
+            });
+            const [isColMenuOpen, setIsColMenuOpen] = React.useState(false);
+
+            // Modal de confirmación de Limpieza / Eliminación validado con usuario/contraseña de CAJERO
+            const [isClearModalOpen, setIsClearModalOpen] = React.useState(false);
+            const [clearAuthPass, setClearAuthPass] = React.useState('');
+            const [clearAuthError, setClearAuthError] = React.useState('');
+            const [asesorToDelete, setAsesorToDelete] = React.useState('');
+
+            const clients = React.useMemo(() => {
+                return unifyFromExcelGrid(gridRows, statusMap);
+            }, [gridRows, statusMap]);
+
+            const missingColumnsAudit = React.useMemo(() => {
+                return auditGridColumns(gridRows);
+            }, [gridRows]);
+
+            const [activeTab, setActiveTab] = React.useState(() => {
+                const initialUnified = unifyFromExcelGrid(gridRows, statusMap);
+                return initialUnified.length > 0 ? 'panel' : 'excel';
+            });
+
+            const [searchTerm, setSearchTerm] = React.useState('');
+            const [condicionFilter, setCondicionFilter] = React.useState('Todos');
+            const [asesorFilter, setAsesorFilter] = React.useState('Todos');
+            const [minAtrasoFilter, setMinAtrasoFilter] = React.useState('');
+            const [onlyParalelasFilter, setOnlyParalelasFilter] = React.useState(false);
+            const [showOnlySelected, setShowOnlySelected] = React.useState(false);
+
+            const [expandedRowIds, setExpandedRowIds] = React.useState({});
+            const [pasteFeedback, setPasteFeedback] = React.useState(null);
+
+            const [isQueueModalOpen, setIsQueueModalOpen] = React.useState(false);
+            const [isTemplateModalOpen, setIsTemplateModalOpen] = React.useState(false);
+            const [messageTemplate, setMessageTemplate] = React.useState(DEFAULT_TEMPLATE);
+            const [queueClients, setQueueClients] = React.useState([]);
+            const [queueIndex, setQueueIndex] = React.useState(0);
+
+            React.useEffect(() => {
+                try {
+                    const nonEmpty = gridRows.filter(r => !isRowEmpty(r));
+                    localStorage.setItem(STORAGE_GRID_KEY, JSON.stringify(nonEmpty));
+                } catch (e) {}
+            }, [gridRows]);
+
+            React.useEffect(() => {
+                try {
+                    localStorage.setItem(STORAGE_STATUS_KEY, JSON.stringify(statusMap));
+                } catch (e) {}
+            }, [statusMap]);
+
+            // ========================================================================
+            // PEGADO ACUMULATIVO EN BLOQUE + HISTORIAL PARA DESHACER ÚLTIMO BLOQUE
+            // ========================================================================
+            const handlePopulateExcelFromText = React.useCallback((rawText, origen = 'Bloque Pegado') => {
+                const { rows: extractedRows, maxColsDetected, incompleteRowsCount } = convertPastedTextToExcelRows(rawText);
+                if (extractedRows.length === 0) {
+                    alert("⚠️ No se detectaron celdas válidas en el portapapeles. Selecciona las 19 columnas en tu Excel, presiona Ctrl+C y luego Ctrl+V aquí.");
+                    return;
+                }
+
+                if (maxColsDetected < EXPECTED_COLUMN_COUNT) {
+                    const faltantes = EXCEL_COLUMNS.slice(maxColsDetected).map(c => `${c.num}. ${c.label}`).join(', ');
+                    setColumnWarning({
+                        detected: maxColsDetected,
+                        expected: EXPECTED_COLUMN_COUNT,
+                        incompleteRowsCount,
+                        missingList: faltantes
+                    });
+                } else {
+                    setColumnWarning(null);
+                }
+
+                // Identificar de qué asesor(es) es este bloque recién pegado para mostrarlo en el botón Deshacer
+                const detectedAdvisors = [...new Set(
+                    extractedRows
+                        .map(r => {
+                            const joined = Object.values(r).join(' ');
+                            if (joined.toUpperCase().includes('ASESOR:')) {
+                                const cell = Object.values(r).find(v => v && String(v).toUpperCase().includes('ASESOR:'));
+                                return cell ? String(cell).replace(/ASESOR:/i, '').trim() : '';
+                            }
+                            return String(r.asesor || '').trim();
+                        })
+                        .filter(Boolean)
+                )];
+                const batchLabel = detectedAdvisors.length > 0
+                    ? detectedAdvisors.join(', ')
+                    : `${extractedRows.length} filas`;
+
+                setGridRows(prevGrid => {
+                    const existingOccupied = prevGrid.filter(r => !isRowEmpty(r));
+                    // Guardamos instantánea en la pila de deshacer antes de agregar el nuevo bloque
+                    setBatchHistory(prevHist => [
+                        ...prevHist.slice(-19),
+                        {
+                            previousOccupiedRows: existingOccupied,
+                            addedCount: extractedRows.length,
+                            label: batchLabel,
+                            hora: new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+                        }
+                    ]);
+
+                    const combinedOccupied = [...existingOccupied, ...extractedRows];
+                    const targetTotal = Math.max(INITIAL_ROW_COUNT, combinedOccupied.length + 30);
+                    const nextGrid = padGridToMinimum(combinedOccupied, targetTotal);
+
+                    const unifiedPreview = unifyFromExcelGrid(combinedOccupied, statusMap);
+                    setPasteFeedback({
+                        origen,
+                        filasAnadidas: extractedRows.length,
+                        totalFilasOcupadas: combinedOccupied.length,
+                        colsDetectadas: maxColsDetected,
+                        lineasUnificadas: unifiedPreview.length,
+                        asesorBloque: batchLabel,
+                        hora: new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+                    });
+
+                    return nextGrid;
+                });
+            }, [statusMap]);
+
+            // DESHACER EL ÚLTIMO BLOQUE AÑADIDO (1 CLIC)
+            const handleUndoLastBatch = () => {
+                if (batchHistory.length === 0) return;
+                const lastBatch = batchHistory[batchHistory.length - 1];
+                const restoredGrid = padGridToMinimum(lastBatch.previousOccupiedRows, INITIAL_ROW_COUNT);
+                setGridRows(restoredGrid);
+                setBatchHistory(prev => prev.slice(0, -1));
+                setColumnWarning(null);
+                setPasteFeedback({
+                    origen: '↩️ Bloque Deshecho',
+                    filasAnadidas: 0,
+                    totalFilasOcupadas: lastBatch.previousOccupiedRows.length,
+                    colsDetectadas: 19,
+                    lineasUnificadas: unifyFromExcelGrid(lastBatch.previousOccupiedRows, statusMap).length,
+                    asesorBloque: `Se eliminó el bloque: ${lastBatch.label} (-${lastBatch.addedCount} filas)`,
+                    hora: new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+                });
+            };
+
+            // ELIMINAR TODAS LAS FILAS DE UN ASESOR ESPECÍFICO
+            const handleDeleteAdvisorBlock = (advisorName) => {
+                if (!advisorName) return;
+                const clientsOfAdvisor = clients.filter(c => c.asesor === advisorName);
+                if (clientsOfAdvisor.length === 0) return;
+
+                const rowIndicesToRemove = new Set();
+                clientsOfAdvisor.forEach(c => {
+                    (c.gridRowIndices || []).forEach(idx => rowIndicesToRemove.add(idx));
+                });
+
+                setGridRows(prevGrid => {
+                    const currentOccupied = prevGrid.filter(r => !isRowEmpty(r));
+                    const remainingRows = prevGrid.filter((r, idx) => {
+                        if (isRowEmpty(r)) return false;
+                        if (rowIndicesToRemove.has(idx)) return false;
+                        const joined = Object.values(r).join(' ').toUpperCase();
+                        if (joined.includes('ASESOR:') && joined.includes(advisorName.toUpperCase())) return false;
+                        return true;
+                    });
+
+                    setBatchHistory(prevHist => [
+                        ...prevHist.slice(-19),
+                        {
+                            previousOccupiedRows: currentOccupied,
+                            addedCount: currentOccupied.length - remainingRows.length,
+                            label: `Asesor ${advisorName}`,
+                            hora: new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+                        }
+                    ]);
+
+                    return padGridToMinimum(remainingRows, INITIAL_ROW_COUNT);
+                });
+                setAsesorToDelete('');
+                if (asesorFilter === advisorName) setAsesorFilter('Todos');
+            };
+
+            // Listener Global Ctrl+V
+            React.useEffect(() => {
+                const onGlobalPaste = (e) => {
+                    const clipboardData = e.clipboardData || window.clipboardData;
+                    if (!clipboardData) return;
+                    const pastedText = clipboardData.getData('Text');
+
+                    if (pastedText && (pastedText.includes('\t') || pastedText.split(/\r?\n/).filter(Boolean).length > 1)) {
+                        if (isTemplateModalOpen || isClearModalOpen) return;
+                        e.preventDefault();
+                        handlePopulateExcelFromText(pastedText, 'Bloque Pegado (Ctrl+V)');
+                    }
+                };
+                window.addEventListener('paste', onGlobalPaste);
+                return () => window.removeEventListener('paste', onGlobalPaste);
+            }, [handlePopulateExcelFromText, isTemplateModalOpen, isClearModalOpen]);
+
+            const handleCellChange = React.useCallback((rowIdx, colKey, value) => {
+                setGridRows(prev => {
+                    const updated = [...prev];
+                    updated[rowIdx] = { ...updated[rowIdx], [colKey]: value };
+                    return updated;
+                });
+            }, []);
+
+            const addEmptyRowsToSheet = (count = 50) => {
+                setGridRows(prev => [...prev, ...createInitialEmptyGrid(count)]);
+            };
+
+            const deleteExcelRow = React.useCallback((rowIdx) => {
+                setGridRows(prev => {
+                    const next = [...prev];
+                    next[rowIdx] = createEmptyExcelRow();
+                    return next;
+                });
+            }, []);
+
+            // Renderizador de Logo Base64 para PDF
+            const [logoBase64, setLogoBase64] = React.useState(null);
+            React.useEffect(() => {
+                const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 240" width="180" height="240"><g fill="#59B447"><rect x="90" y="8" width="24" height="13" rx="6.5"/><rect x="71" y="31" width="61" height="13" rx="6.5"/><rect x="50" y="55" width="74" height="13" rx="6.5"/><rect x="31" y="79" width="75" height="13" rx="6.5"/><rect x="24" y="103" width="63" height="13" rx="6.5"/><rect x="37" y="128" width="24" height="13" rx="6.5"/><path d="M143 55 C141 78 130 95 111 107 C96 117 81 122 72 134 C62 147 63 166 70 181 C76 195 87 208 97 216 C107 201 118 189 131 177 C144 166 157 156 164 141 C173 123 173 104 168 89 C164 74 156 62 143 55 Z"/></g></svg>`;
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 180;
+                    canvas.height = 240;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    setLogoBase64(canvas.toDataURL('image/png'));
+                };
+                img.src = 'data:image/svg+xml;base64,' + btoa(svgStr);
+            }, []);
+
+            const asesoresList = [...new Set(clients.map(c => String(c.asesor || 'Sin Asesor')))].sort();
+
+            // VALIDACIÓN DE PERMISO DE CAJERO PARA ELIMINAR / LIMPIAR TODA LA BASE
+            const confirmClearAllData = (e) => {
+                e.preventDefault();
+                const cleanPass = clearAuthPass.trim();
+                if (!cleanPass) {
+                    setClearAuthError('Ingrese su contraseña de Cajero para autorizar la limpieza.');
+                    return;
+                }
+
+                const matchesCurrentCajero = currentUser && String(currentUser.clave) === String(cleanPass);
+                const matchesAnyCajeroInNetwork = (usersList || []).some(
+                    u => isCajeroRole(u.categoria) && String(u.clave) === String(cleanPass)
+                );
+                const matchesMasterFallback = cleanPass === 'CREDICAJA123';
+
+                if (matchesCurrentCajero || matchesAnyCajeroInNetwork || matchesMasterFallback) {
+                    setGridRows(createInitialEmptyGrid(INITIAL_ROW_COUNT));
+                    setStatusMap({});
+                    setBatchHistory([]);
+                    setExpandedRowIds({});
+                    setPasteFeedback(null);
+                    setColumnWarning(null);
+                    localStorage.removeItem(STORAGE_GRID_KEY);
+                    localStorage.removeItem(STORAGE_STATUS_KEY);
+                    setClearAuthPass('');
+                    setClearAuthError('');
+                    setIsClearModalOpen(false);
+                } else {
+                    setClearAuthError('Contraseña incorrecta. Solo el Cajero autorizado puede limpiar el sistema.');
+                }
+            };
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    handlePopulateExcelFromText(evt.target.result, `Archivo (${file.name})`);
+                    e.target.value = null;
+                };
+                reader.readAsText(file);
+            };
+
+            const handleStatusChange = (clientId, field, newValue) => {
+                setStatusMap(prev => ({
+                    ...prev,
+                    [clientId]: {
+                        ...(prev[clientId] || { estadoLlamada: 'Pendiente', estadoWA: 'Pendiente', selected: false }),
+                        [field]: newValue
+                    }
+                }));
+            };
+
+            const toggleSelect = (clientId) => {
+                setStatusMap(prev => {
+                    const current = prev[clientId] || { estadoLlamada: 'Pendiente', estadoWA: 'Pendiente', selected: false };
+                    return {
+                        ...prev,
+                        [clientId]: { ...current, selected: !current.selected }
+                    };
+                });
+            };
+
+            const toggleExpandRow = (clientId) => {
+                setExpandedRowIds(prev => ({
+                    ...prev,
+                    [clientId]: !prev[clientId]
+                }));
+            };
+
+            const expandAllVisible = (expand) => {
+                if (!expand) {
+                    setExpandedRowIds({});
+                    return;
+                }
+                const next = {};
+                filteredClients.forEach(c => { next[c.id] = true; });
+                setExpandedRowIds(next);
+            };
+
+            // FILTROS BLINDADOS
+            const filteredClients = clients.filter(client => {
+                if (showOnlySelected) return client.selected;
+
+                const safeNombre = client.nombre ? String(client.nombre).toLowerCase() : '';
+                const safeCelular = client.celular ? String(client.celular).toLowerCase() : '';
+                const safeCredito = client.credito ? String(client.credito).toLowerCase() : '';
+                const searchLower = searchTerm ? String(searchTerm).toLowerCase() : '';
+
+                const matchesSearch = safeNombre.includes(searchLower) || safeCelular.includes(searchLower) || safeCredito.includes(searchLower);
+
+                let matchesCondicion = true;
+                if (condicionFilter === 'Cobrar Hoy') matchesCondicion = client.maxAtraso >= 0;
+                else if (condicionFilter === 'En Mora') matchesCondicion = client.maxAtraso > 0;
+                else if (condicionFilter === 'Vence Hoy') matchesCondicion = client.maxAtraso === 0;
+                else if (condicionFilter === 'Por Vencer') matchesCondicion = client.maxAtraso < 0;
+
+                const matchesAsesor = asesorFilter === 'Todos' || client.asesor === asesorFilter;
+                const matchesParalela = !onlyParalelasFilter || client.tieneParalela;
+
+                let matchesMinAtraso = true;
+                if (minAtrasoFilter !== '') {
+                    const minVal = parseInt(minAtrasoFilter, 10);
+                    if (!isNaN(minVal)) {
+                        matchesMinAtraso = client.maxAtraso >= minVal;
+                    }
+                }
+
+                return matchesSearch && matchesCondicion && matchesAsesor && matchesParalela && matchesMinAtraso;
+            });
+
+            const selectedInFiltered = filteredClients.filter(c => c.selected);
+            const kpiSource = selectedInFiltered.length > 0 ? selectedInFiltered : filteredClients;
+
+            const calcPesoCarteraExigible = kpiSource.reduce((sum, c) => sum + (Number(c.totalCobrarHoy) || 0), 0);
+            const calcTotalCancelarCapInt = kpiSource.reduce((sum, c) => sum + (Number(c.montoCancelarCapInt) || 0), 0);
+            const calcTotalCancelarCapital = kpiSource.reduce((sum, c) => sum + (Number(c.saldoCapital) || 0), 0);
+            const calcMoraAcumulada = kpiSource.reduce((sum, c) => sum + (Number(c.moraGeneradaVencida) || 0), 0);
+            const calcDesembolso = kpiSource.reduce((sum, c) => sum + (Number(c.montoDesembolsado) || 0), 0);
+            const calcCuotaOriVencida = kpiSource.reduce((sum, c) => sum + (Number(c.cuotaOriginalVencida) || 0), 0);
+            const calcPrimeraCuotaSinMora = kpiSource.reduce((sum, c) => sum + (Number(c.cuotaMasAntiguaBase) || 0), 0);
+            const calcPrimeraCuotaConMora = kpiSource.reduce((sum, c) => sum + (Number(c.cuotaMasAntiguaTotal) || 0), 0);
+            const calcTotalLineasParalelas = kpiSource.filter(c => c.tieneParalela).length;
+            const calcClientesUnicos = new Set(kpiSource.map(c => c.clientKey)).size;
+
+            const toggleSelectAll = () => {
+                const allSelected = filteredClients.length > 0 && filteredClients.every(c => c.selected);
+                setStatusMap(prev => {
+                    const next = { ...prev };
+                    filteredClients.forEach(c => {
+                        const curr = next[c.id] || { estadoLlamada: 'Pendiente', estadoWA: 'Pendiente', selected: false };
+                        next[c.id] = { ...curr, selected: !allSelected };
+                    });
+                    return next;
+                });
+            };
+
+            const startBulkWhatsApp = () => {
+                const selected = clients.filter(c => c.selected);
+                if (selected.length === 0) {
+                    alert("Selecciona al menos un cliente para enviar el mensaje.");
+                    return;
+                }
+                setQueueClients(selected);
+                setQueueIndex(0);
+                setIsQueueModalOpen(true);
+            };
+
+            const sendIndividualWhatsApp = (client) => {
+                const phone = formatPhoneNumber(client.celular);
+                const nombreElegante = toTitleCase(client.nombre);
+                let msg = messageTemplate.replace(/{nombre}/g, nombreElegante);
+
+                const cuotasReales = (client.cuotasAtrasadas + client.cuotasVenceHoy) > 0
+                    ? (client.cuotasAtrasadas + client.cuotasVenceHoy)
+                    : client.totalCuotasPendientes;
+
+                msg = msg.replace(/{cuotasMora}/g, cuotasReales);
+
+                const text = encodeURIComponent(msg);
+                window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+            };
+
+            const selectedCount = clients.filter(c => c.selected).length;
+
+            const getFilePrefix = () => {
+                const d = new Date();
+                const pad = (n) => n.toString().padStart(2, '0');
+                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}_`;
+            };
+
+            // ---- PDF 1: RPT. LLAMADAS ----
+            const generarPDFGestion = () => {
+                if (filteredClients.length === 0) {
+                    alert("No hay clientes filtrados para generar el reporte.");
+                    return;
+                }
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('l');
+                const fechaActual = new Date().toLocaleDateString('es-PE');
+                const horaActual = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+
+                const styleStatusCell = (data, idxAtraso, idxLL, idxWA) => {
+                    if (data.section === 'body') {
+                        if (data.column.index === idxAtraso) {
+                            const valAtraso = parseInt(data.cell.raw, 10);
+                            if (!isNaN(valAtraso)) {
+                                const color = getMoraColor(valAtraso);
+                                data.cell.styles.fillColor = color.bg;
+                                data.cell.styles.textColor = color.text;
+                                data.cell.styles.fontStyle = 'bold';
+                            }
+                        }
+                        if (data.column.index === idxLL || data.column.index === idxWA) {
+                            const val = data.cell.raw || '';
+                            if (val.includes('Positivo') || val.includes('Respondió')) {
+                                data.cell.styles.fillColor = [220, 252, 231];
+                                data.cell.styles.textColor = [22, 101, 52];
+                            } else if (val.includes('Promesa')) {
+                                data.cell.styles.fillColor = [219, 234, 254];
+                                data.cell.styles.textColor = [30, 64, 175];
+                            } else if (val.includes('No Contesta') || val.includes('No Responde')) {
+                                data.cell.styles.fillColor = [254, 249, 195];
+                                data.cell.styles.textColor = [133, 77, 14];
+                            } else if (val.includes('Equivocado') || val.includes('Bloqueado')) {
+                                data.cell.styles.fillColor = [254, 226, 226];
+                                data.cell.styles.textColor = [153, 27, 27];
+                            }
+                        }
+                    }
+                };
+
+                if (logoBase64) doc.addImage(logoBase64, 'PNG', 14, 10, 9, 12);
+
+                doc.setFontSize(18);
+                doc.setTextColor(22, 163, 74);
+                doc.text(`RPT. GENERAL DE GESTIÓN (LLAMADAS Y WA) - CREDIBAN`, 28, 16);
+                doc.setFontSize(11);
+                doc.setTextColor(100);
+                doc.text(`Fecha: ${fechaActual} - Hora: ${horaActual} | Emitido por Cajero: ${currentUser?.usuario || 'Caja'}`, 28, 23);
+
+                const globalSorted = [...filteredClients].sort((a, b) => getBestPriority(a) - getBestPriority(b));
+
+                const globalTableData = globalSorted.map(c => [
+                    `${toTitleCase(c.nombre)}${c.tieneParalela ? ` [Línea ${c.numeroLinea}/${c.totalLineasCliente}]` : ''}`,
+                    c.asesor,
+                    c.cuotasAtrasadas > 0 ? c.cuotasAtrasadas : c.cuotasVenceHoy,
+                    `${c.maxAtraso}d`,
+                    c.cuotaMasAntiguaBase > 0 ? `S/ ${c.cuotaMasAntiguaBase.toFixed(2)}` : '-',
+                    c.cuotaMasAntiguaTotal > 0 ? `S/ ${c.cuotaMasAntiguaTotal.toFixed(2)}` : '-',
+                    `S/ ${c.totalCobrarHoy.toFixed(2)}`,
+                    stripEmojis(c.estadoLlamada),
+                    stripEmojis(c.estadoWA)
+                ]);
+
+                doc.autoTable({
+                    startY: 30,
+                    head: [['Cliente', 'Asesor', 'Cts. Atr.', 'Días Atraso', '1ra C. (Sin Mora)', '1ra C. + Mora', 'Exigible HOY', 'Gestión Llamada', 'Gestión WA']],
+                    body: globalTableData,
+                    theme: 'grid',
+                    headStyles: { fillColor: [22, 163, 74], textColor: [255, 255, 255] },
+                    styles: { fontSize: 8, cellPadding: 2.5 },
+                    columnStyles: { 6: { cellWidth: 25 } },
+                    alternateRowStyles: { fillColor: [245, 245, 245] },
+                    didParseCell: (data) => styleStatusCell(data, 3, 7, 8),
+                    margin: { top: 15 }
+                });
+
+                const asesoresImprimir = [...new Set(filteredClients.map(c => c.asesor))].sort();
+
+                asesoresImprimir.forEach((asesor) => {
+                    doc.addPage();
+                    if (logoBase64) doc.addImage(logoBase64, 'PNG', 14, 10, 9, 12);
+
+                    const asesorClients = filteredClients
+                        .filter(c => c.asesor === asesor)
+                        .sort((a, b) => getBestPriority(a) - getBestPriority(b));
+
+                    doc.setFontSize(18);
+                    doc.setTextColor(37, 99, 235);
+                    doc.text(`REPORTE DE GESTIÓN: ${asesor}`, 28, 16);
+                    doc.setFontSize(11);
+                    doc.setTextColor(100);
+                    doc.text(`Fecha: ${fechaActual} - Hora: ${horaActual} | Resultados de Contacto`, 28, 23);
+
+                    const tableDataAsesor = asesorClients.map(c => [
+                        `${toTitleCase(c.nombre)}${c.tieneParalela ? ` [Línea ${c.numeroLinea}/${c.totalLineasCliente}]` : ''}`,
+                        c.cuotasAtrasadas > 0 ? c.cuotasAtrasadas : c.cuotasVenceHoy,
+                        `${c.maxAtraso}d`,
+                        c.cuotaMasAntiguaBase > 0 ? `S/ ${c.cuotaMasAntiguaBase.toFixed(2)}` : '-',
+                        c.cuotaMasAntiguaTotal > 0 ? `S/ ${c.cuotaMasAntiguaTotal.toFixed(2)}` : '-',
+                        `S/ ${c.totalCobrarHoy.toFixed(2)}`,
+                        stripEmojis(c.estadoLlamada),
+                        stripEmojis(c.estadoWA)
+                    ]);
+
+                    doc.autoTable({
+                        startY: 30,
+                        head: [['Cliente', 'Cts. Atr.', 'Días Atraso', '1ra C. (Sin Mora)', '1ra C. + Mora', 'Exigible HOY', 'Gestión Llamada', 'Gestión WA']],
+                        body: tableDataAsesor,
+                        theme: 'grid',
+                        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
+                        styles: { fontSize: 8, cellPadding: 2.5 },
+                        columnStyles: { 5: { cellWidth: 25 } },
+                        alternateRowStyles: { fillColor: [240, 249, 255] },
+                        didParseCell: (data) => styleStatusCell(data, 2, 6, 7),
+                        margin: { top: 15 }
+                    });
+                });
+
+                doc.save(`${getFilePrefix()}Rpt_Llamadas.pdf`);
+            };
+
+            // ---- PDF 2: RPT. MORA ----
+            const generarPDFMora = () => {
+                const moraClients = filteredClients.filter(c => c.maxAtraso >= 0);
+                if (moraClients.length === 0) {
+                    alert("No hay clientes en Mora o con Vencimiento Hoy para asignar.");
+                    return;
+                }
+
+                const asesores = [...new Set(moraClients.map(c => c.asesor))].sort();
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('l');
+                const fechaActual = new Date().toLocaleDateString('es-PE');
+                const horaActual = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+
+                if (logoBase64) doc.addImage(logoBase64, 'PNG', 14, 10, 9, 12);
+
+                const totalMoraGlobal = moraClients.reduce((sum, c) => sum + (Number(c.totalCobrarHoy) || 0), 0);
+                const totalCancelarGlobal = moraClients.reduce((sum, c) => sum + (Number(c.montoCancelarCapInt) || 0), 0);
+                const totalCapitalGlobal = moraClients.reduce((sum, c) => sum + (Number(c.saldoCapital) || 0), 0);
+                const totalMoraAcumGlobal = moraClients.reduce((sum, c) => sum + (Number(c.moraGeneradaVencida) || 0), 0);
+
+                doc.setFontSize(18);
+                doc.setTextColor(185, 28, 28);
+                doc.text(`RPT. GLOBAL DE MORA Y ASIGNACIÓN - CREDIBAN`, 28, 16);
+                doc.setFontSize(11);
+                doc.setTextColor(100);
+                doc.text(`Fecha: ${fechaActual} - Hora: ${horaActual} | Vista Global de Cartera en Mora | Clientes Totales: ${moraClients.length}`, 28, 23);
+
+                doc.setFontSize(8);
+                doc.setTextColor(40, 40, 40);
+                doc.text(`Meta Global Cobrar Hoy: S/ ${totalMoraGlobal.toFixed(2)}   |   Peso Cartera a Cancelar (Cap+Int): S/ ${totalCancelarGlobal.toFixed(2)}   |   Capital Real: S/ ${totalCapitalGlobal.toFixed(2)}   |   Mora Acumulada: S/ ${totalMoraAcumGlobal.toFixed(2)}`, 14, 34);
+
+                const globalMoraData = [...moraClients].sort((a, b) => b.totalCobrarHoy - a.totalCobrarHoy).map(c => [
+                    `${toTitleCase(c.nombre)}${c.tieneParalela ? ` [L.${c.numeroLinea}/${c.totalLineasCliente}]` : ''}`,
+                    c.asesor,
+                    `${(c.avancePorcentaje || 0).toFixed(1)}%`,
+                    `${c.maxAtraso || 0}`,
+                    c.cuotasAtrasadas > 0 ? c.cuotasAtrasadas : c.cuotasVenceHoy,
+                    c.saldoCapital > 0 ? `S/ ${c.saldoCapital.toFixed(2)}` : '-',
+                    c.montoCancelarCapInt > 0 ? `S/ ${c.montoCancelarCapInt.toFixed(2)}` : '-',
+                    c.cuotaMasAntiguaBase > 0 ? `S/ ${c.cuotaMasAntiguaBase.toFixed(2)}` : '-',
+                    c.cuotaMasAntiguaTotal > 0 ? `S/ ${c.cuotaMasAntiguaTotal.toFixed(2)}` : '-',
+                    c.cuotaOriginalVencida > 0 ? `S/ ${c.cuotaOriginalVencida.toFixed(2)}` : '-',
+                    c.moraGeneradaVencida > 0 ? `S/ ${c.moraGeneradaVencida.toFixed(2)}` : '-',
+                    `S/ ${(c.totalCobrarHoy || 0).toFixed(2)}`
+                ]);
+
+                doc.autoTable({
+                    startY: 38,
+                    head: [['Cliente', 'Asesor', 'Avance %', 'Atraso', 'Cts.\nAtr.', 'Cancelar\n(Capital)', 'Cancelar\n(Cap+Int)', '1ra C. Atr.\n(Sin Mora)', '1ra C.\n+ Mora', 'C. Ori.\nVencida', 'Int.\nMora', 'Exigible Hoy\n(0 Mora)']],
+                    body: globalMoraData,
+                    theme: 'grid',
+                    headStyles: { fillColor: [185, 28, 28], textColor: [255, 255, 255] },
+                    styles: { fontSize: 7, cellPadding: 2 },
+                    columnStyles: {
+                        4: { cellWidth: 10 }, 5: { cellWidth: 18 },
+                        6: { cellWidth: 20 }, 7: { cellWidth: 18 }, 8: { cellWidth: 18 }, 9: { cellWidth: 18 }, 10: { cellWidth: 20 }, 11: { cellWidth: 24 }
+                    },
+                    didParseCell: function(data) {
+                        if (data.section === 'body' && data.column.index === 3) {
+                            const val = parseInt(data.cell.raw, 10);
+                            if (!isNaN(val)) {
+                                data.cell.text = `${val} días`;
+                                const color = getMoraColor(val);
+                                data.cell.styles.fillColor = color.bg;
+                                data.cell.styles.textColor = color.text;
+                                data.cell.styles.fontStyle = 'bold';
+                            }
+                        }
+                    },
+                    margin: { top: 15 }
+                });
+
+                asesores.forEach((asesor) => {
+                    doc.addPage();
+                    if (logoBase64) doc.addImage(logoBase64, 'PNG', 14, 10, 9, 12);
+
+                    const asesorClients = moraClients
+                        .filter(c => c.asesor === asesor)
+                        .sort((a, b) => a.maxAtraso - b.maxAtraso);
+
+                    const totalMoraAsesor = asesorClients.reduce((sum, c) => sum + (Number(c.totalCobrarHoy) || 0), 0);
+                    const pesoCarteraCancelar = asesorClients.reduce((sum, c) => sum + (Number(c.montoCancelarCapInt) || 0), 0);
+                    const capitalTotal = asesorClients.reduce((sum, c) => sum + (Number(c.saldoCapital) || 0), 0);
+                    const moraTotalAsesor = asesorClients.reduce((sum, c) => sum + (Number(c.moraGeneradaVencida) || 0), 0);
+
+                    doc.setFontSize(16);
+                    doc.setTextColor(185, 28, 28);
+                    doc.text(`ASIGNACIÓN DE COBRANZA (RPT. MORA) - CREDIBAN PERÚ`, 28, 16);
+
+                    doc.setFontSize(12);
+                    doc.setTextColor(0);
+                    doc.text(`Asesor a Cargo: ${asesor}`, 28, 23);
+
+                    doc.setFontSize(9);
+                    doc.setTextColor(100);
+                    doc.text(`Fecha de Corte: ${fechaActual} | Clientes Asignados: ${asesorClients.length}`, 28, 28);
+
+                    doc.setFontSize(8);
+                    doc.setTextColor(40, 40, 40);
+                    doc.text(`Meta Cobrar Hoy: S/ ${totalMoraAsesor.toFixed(2)}   |   Peso Cartera a Cancelar (Cap+Int): S/ ${pesoCarteraCancelar.toFixed(2)}   |   Capital Real: S/ ${capitalTotal.toFixed(2)}   |   Mora Acumulada: S/ ${moraTotalAsesor.toFixed(2)}`, 14, 34);
+
+                    const tableData = asesorClients.map(c => [
+                        `${toTitleCase(c.nombre)}${c.tieneParalela ? ` [L.${c.numeroLinea}/${c.totalLineasCliente}]` : ''}`,
+                        `${(c.avancePorcentaje || 0).toFixed(1)}%`,
+                        `${c.maxAtraso || 0}`,
+                        c.cuotasAtrasadas > 0 ? c.cuotasAtrasadas : c.cuotasVenceHoy,
+                        c.saldoCapital > 0 ? `S/ ${c.saldoCapital.toFixed(2)}` : '-',
+                        c.montoCancelarCapInt > 0 ? `S/ ${c.montoCancelarCapInt.toFixed(2)}` : '-',
+                        c.cuotaMasAntiguaBase > 0 ? `S/ ${c.cuotaMasAntiguaBase.toFixed(2)}` : '-',
+                        c.cuotaMasAntiguaTotal > 0 ? `S/ ${c.cuotaMasAntiguaTotal.toFixed(2)}` : '-',
+                        c.cuotaOriginalVencida > 0 ? `S/ ${c.cuotaOriginalVencida.toFixed(2)}` : '-',
+                        c.moraGeneradaVencida > 0 ? `S/ ${c.moraGeneradaVencida.toFixed(2)}` : '-',
+                        `S/ ${(c.totalCobrarHoy || 0).toFixed(2)}`
+                    ]);
+
+                    doc.autoTable({
+                        startY: 38,
+                        head: [['Cliente', 'Avance %', 'Atraso', 'Cts.\nAtr.', 'Cancelar\n(Capital)', 'Cancelar\n(Cap+Int)', '1ra C. Atr.\n(Sin Mora)', '1ra C.\n+ Mora', 'C. Ori.\nVencida', 'Int.\nMora', 'Exigible Hoy\n(0 Mora)']],
+                        body: tableData,
+                        theme: 'grid',
+                        headStyles: { fillColor: [185, 28, 28], textColor: [255, 255, 255] },
+                        styles: { fontSize: 7, cellPadding: 2 },
+                        columnStyles: {
+                            3: { cellWidth: 10 }, 4: { cellWidth: 18 },
+                            5: { cellWidth: 20 }, 6: { cellWidth: 18 }, 7: { cellWidth: 18 }, 8: { cellWidth: 18 }, 9: { cellWidth: 20 }, 10: { cellWidth: 26 }
+                        },
+                        didParseCell: function(data) {
+                            if (data.section === 'body' && data.column.index === 2) {
+                                const val = parseInt(data.cell.raw, 10);
+                                if (!isNaN(val)) {
+                                    data.cell.text = `${val} días`;
+                                    const color = getMoraColor(val);
+                                    data.cell.styles.fillColor = color.bg;
+                                    data.cell.styles.textColor = color.text;
+                                    data.cell.styles.fontStyle = 'bold';
+                                }
+                            }
+                        },
+                        margin: { top: 15 }
+                    });
+                });
+                doc.save(`${getFilePrefix()}Rpt_Asignacion_Mora.pdf`);
+            };
+
+            const nonEmptyGridRowsCount = gridRows.filter(r => !isRowEmpty(r)).length;
+            const globalMeta = clients.reduce((sum, c) => sum + (Number(c.totalCobrarHoy) || 0), 0);
+            const lastBatchInfo = batchHistory.length > 0 ? batchHistory[batchHistory.length - 1] : null;
+
+            return (
+                <div className="min-h-screen relative bg-slate-100 pb-12 font-sans">
+
+                    {/* MODAL DE CONFIRMACIÓN DE LIMPIEZA GENERAL (VALIDADO CON CONTRASEÑA DE CAJERO) */}
+                    {isClearModalOpen && (
+                        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-t-4 border-red-600">
+                                <h3 className="text-lg font-extrabold text-red-700 mb-1">
+                                    ⚠️ Autorización de Limpieza General
+                                </h3>
+                                <p className="text-xs text-slate-600 mb-4">
+                                    Esta acción eliminará todos los bloques de asesores cargados en la sesión actual. Confirme ingresando la contraseña de <strong>CAJERO ({currentUser?.usuario})</strong>:
+                                </p>
+                                <form onSubmit={confirmClearAllData}>
+                                    <input
+                                        type="password"
+                                        placeholder="Contraseña de Cajero..."
+                                        className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-xl focus:outline-none focus:border-red-500 text-center font-bold mb-3"
+                                        value={clearAuthPass}
+                                        onChange={(e) => { setClearAuthPass(e.target.value); setClearAuthError(''); }}
+                                        autoFocus
+                                    />
+                                    {clearAuthError && (
+                                        <p className="text-xs text-red-600 font-bold mb-3">{clearAuthError}</p>
+                                    )}
+                                    <div className="flex justify-end gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setIsClearModalOpen(false); setClearAuthPass(''); setClearAuthError(''); }}
+                                            className="px-4 py-2 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100"
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="px-5 py-2 rounded-lg text-xs font-extrabold bg-red-600 hover:bg-red-700 text-white shadow-md"
+                                        >
+                                            🗑️ Confirmar Limpieza Total
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL PLANTILLA WHATSAPP */}
+                    {isTemplateModalOpen && (
+                        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 border-t-4 border-gray-800">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-xl font-bold text-gray-800">Configuración de Mensaje WhatsApp</h3>
+                                    <button onClick={() => setIsTemplateModalOpen(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                                </div>
+                                <div className="text-sm text-gray-600 mb-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                    <strong>Etiquetas dinámicas:</strong> Escribe <code className="bg-blue-100 px-1 rounded text-blue-800">{`{nombre}`}</code> o <code className="bg-blue-100 px-1 rounded text-blue-800">{`{cuotasMora}`}</code> en el texto para que se reemplacen solos al enviar.
+                                </div>
+                                <textarea
+                                    className="w-full h-64 p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 resize-none text-gray-700 leading-relaxed whitespace-pre-wrap"
+                                    value={messageTemplate}
+                                    onChange={(e) => setMessageTemplate(e.target.value)}
+                                ></textarea>
+                                <div className="flex justify-between items-center mt-6">
+                                    <button
+                                        onClick={() => setMessageTemplate(DEFAULT_TEMPLATE)}
+                                        className="text-orange-600 hover:text-orange-800 px-4 py-2 font-medium text-sm"
+                                    >
+                                        Restaurar plantilla original
+                                    </button>
+                                    <button
+                                        onClick={() => setIsTemplateModalOpen(false)}
+                                        className="bg-gray-800 hover:bg-gray-900 text-white px-6 py-2 rounded-lg font-medium shadow-md"
+                                    >
+                                        Guardar y Cerrar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL COLA WHATSAPP */}
+                    {isQueueModalOpen && queueClients.length > 0 && (
+                        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-t-4 border-green-500">
+                                <h3 className="text-xl font-bold text-gray-800 mb-2">Envío Masivo de WhatsApp</h3>
+                                <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+                                    <div className="bg-green-500 h-2 rounded-full" style={{ width: `${((queueIndex + 1) / queueClients.length) * 100}%` }}></div>
+                                </div>
+                                <p className="text-sm text-gray-500 mb-4 font-medium">
+                                    Enviando mensaje {queueIndex + 1} de {queueClients.length}
+                                </p>
+                                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-6 shadow-inner">
+                                    <p className="font-semibold text-gray-700 text-xs uppercase tracking-wider mb-1">Cliente:</p>
+                                    <p className="text-gray-900 text-lg font-bold mb-1">{toTitleCase(queueClients[queueIndex].nombre)}</p>
+                                    {queueClients[queueIndex].tieneParalela && (
+                                        <p className="text-xs font-bold text-purple-700 mb-2">
+                                            ⚡ Línea Paralela {queueClients[queueIndex].numeroLinea}/{queueClients[queueIndex].totalLineasCliente} (S/ {queueClients[queueIndex].montoDesembolsado.toFixed(2)})
+                                        </p>
+                                    )}
+                                    <p className="font-semibold text-gray-700 text-xs uppercase tracking-wider mb-1">Celular:</p>
+                                    <p className="text-gray-900 font-medium mb-4">{queueClients[queueIndex].celular}</p>
+                                    <button
+                                        onClick={() => sendIndividualWhatsApp(queueClients[queueIndex])}
+                                        className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-bold py-3 rounded-xl transition-colors flex justify-center items-center gap-2 shadow-md"
+                                    >
+                                        📲 Abrir Chat WhatsApp
+                                    </button>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <button
+                                        onClick={() => setIsQueueModalOpen(false)}
+                                        className="text-gray-500 hover:text-gray-800 px-4 py-2 font-medium"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (queueIndex < queueClients.length - 1) setQueueIndex(queueIndex + 1);
+                                            else setIsQueueModalOpen(false);
+                                        }}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium shadow-md"
+                                    >
+                                        {queueIndex < queueClients.length - 1 ? 'Siguiente ➔' : 'Finalizar ✔️'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* HEADER CORPORATIVO */}
+                    <header className="bg-[#16a34a] text-white shadow-md sticky top-0 z-30">
+                        <div className="max-w-[1550px] mx-auto px-4 py-2.5 flex justify-between items-center flex-wrap gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center justify-center bg-white p-1.5 rounded-xl shadow-sm h-12 w-auto">
+                                    <LogoSVG className="h-9 w-auto" />
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-extrabold tracking-tight">GESTIÓN DE NOTIFICACIONES - CREDIBAN PERÚ</h1>
+                                    <p className="text-xs text-green-100">
+                                        👤 Cajero en Sesión: <strong>{currentUser?.usuario}</strong> ({currentUser?.categoria} - {currentUser?.sede})
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 items-center">
+                                {/* BOTÓN DESHACER ÚLTIMO BLOQUE AÑADIDO */}
+                                <button
+                                    onClick={handleUndoLastBatch}
+                                    disabled={!lastBatchInfo}
+                                    title={lastBatchInfo ? `Eliminar último bloque pegado: ${lastBatchInfo.label} (${lastBatchInfo.addedCount} filas)` : 'No hay bloques recientes para deshacer'}
+                                    className={`px-3.5 py-2 rounded-lg font-extrabold text-xs shadow-sm transition-all flex items-center gap-1.5 ${
+                                        lastBatchInfo
+                                            ? 'bg-amber-400 hover:bg-amber-300 text-slate-900 cursor-pointer'
+                                            : 'bg-white/10 text-green-200 border border-white/20 cursor-not-allowed'
+                                    }`}
+                                >
+                                    ↩️ {lastBatchInfo ? `Eliminar Último Bloque (${lastBatchInfo.label})` : 'Deshacer Último Bloque'}
+                                </button>
+
+                                <button
+                                    onClick={() => setIsTemplateModalOpen(true)}
+                                    className="bg-white/20 hover:bg-white/30 text-white px-3.5 py-2 rounded-lg font-semibold text-xs border border-white/30"
+                                >
+                                    ⚙️ Configurar Mensaje WA
+                                </button>
+
+                                <button
+                                    onClick={() => setIsClearModalOpen(true)}
+                                    className="bg-red-600/80 hover:bg-red-700 text-white px-3.5 py-2 rounded-lg font-bold text-xs border border-red-300/40 shadow-sm"
+                                >
+                                    🗑️ Limpiar Todo
+                                </button>
+
+                                <button
+                                    onClick={onLogout}
+                                    className="bg-slate-900/40 hover:bg-slate-900/70 text-white px-3 py-2 rounded-lg font-semibold text-xs border border-white/20"
+                                    title="Cerrar sesión de Cajero"
+                                >
+                                    🔒 Salir
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* PESTAÑAS PRINCIPALES */}
+                        <div className="max-w-[1550px] mx-auto px-4 pt-1 flex justify-between items-center flex-wrap bg-[#15803d]">
+                            <div className="flex space-x-6 overflow-x-auto">
+                                <button
+                                    onClick={() => setActiveTab('excel')}
+                                    className={`py-2.5 px-3 border-b-4 font-extrabold text-xs sm:text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${
+                                        activeTab === 'excel' ? 'border-amber-300 text-amber-200' : 'border-transparent text-green-100 hover:text-white'
+                                    }`}
+                                >
+                                    📊 1. HOJA EXCEL (PEGAR POR BLOQUES DE ASESOR)
+                                    <span className="bg-white/20 px-2 py-0.5 rounded-full text-[11px]">{nonEmptyGridRowsCount} / {gridRows.length} filas</span>
+                                </button>
+
+                                <button
+                                    onClick={() => setActiveTab('panel')}
+                                    className={`py-2.5 px-3 border-b-4 font-extrabold text-xs sm:text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${
+                                        activeTab === 'panel' ? 'border-white text-white' : 'border-transparent text-green-100 hover:text-white'
+                                    }`}
+                                >
+                                    📋 2. PANEL DE GESTIÓN UNIFICADO Y DETALLADO
+                                    <span className="bg-amber-400 text-slate-900 px-2 py-0.5 rounded-full text-[11px] font-black">{clients.length} líneas</span>
+                                </button>
+                            </div>
+
+                            {pasteFeedback && (
+                                <div className="text-[11px] bg-emerald-900/80 px-3 py-1 rounded-full my-1 font-medium text-emerald-100">
+                                    ✅ {pasteFeedback.origen} ({pasteFeedback.hora}): <strong>{pasteFeedback.asesorBloque}</strong> ➔ Total: <strong>{pasteFeedback.lineasUnificadas} líneas unificadas</strong>
+                                </div>
+                            )}
+                        </div>
+                    </header>
+
+                    <main className="max-w-[1550px] mx-auto px-3 sm:px-5 py-4">
+
+                        {/* ALERTA ROJA EN CASO NO SE COMPLETEN LAS 19 COLUMNAS AL PEGAR */}
+                        {columnWarning && (
+                            <div className="mb-4 bg-red-600 text-white p-4 rounded-xl shadow-lg border-2 border-red-800 flex flex-wrap justify-between items-center gap-3">
+                                <div>
+                                    <h4 className="font-extrabold text-sm uppercase flex items-center gap-2">
+                                        ⚠️ ADVERTENCIA: NO SE COMPLETARON LAS 19 COLUMNAS REQUERIDAS (SE DETECTARON SOLO {columnWarning.detected} DE {columnWarning.expected} COLUMNAS)
+                                    </h4>
+                                    <p className="text-xs text-red-100 mt-1">
+                                        Si te equivocaste al copiar este bloque de asesor, pulsa el botón <strong>"↩️ Eliminar Último Bloque"</strong> aquí al lado para deshacerlo de inmediato.
+                                    </p>
+                                    {columnWarning.missingList && (
+                                        <p className="text-xs font-bold text-amber-200 mt-1">
+                                            Columnas faltantes: {columnWarning.missingList}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="flex gap-2">
+                                    {lastBatchInfo && (
+                                        <button
+                                            onClick={handleUndoLastBatch}
+                                            className="bg-amber-400 text-slate-900 hover:bg-amber-300 font-extrabold px-4 py-2 rounded-lg text-xs shadow"
+                                        >
+                                            ↩️ Deshacer Este Bloque Ahora
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setColumnWarning(null)}
+                                        className="bg-white text-red-700 hover:bg-red-50 font-extrabold px-3 py-2 rounded-lg text-xs shadow"
+                                    >
+                                        Cerrar ✕
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {!columnWarning && missingColumnsAudit && missingColumnsAudit.length > 0 && (
+                            <div className="mb-4 bg-amber-50 border-l-4 border-amber-500 p-3 rounded-xl shadow-sm flex flex-wrap justify-between items-center gap-2 text-xs text-amber-900">
+                                <div>
+                                    <strong>⚠️ Verificación de 19 Columnas:</strong> Algunas filas principales tienen celdas vacías en: <span className="font-bold underline">{missingColumnsAudit.join(', ')}</span>.
+                                </div>
+                                {lastBatchInfo && (
+                                    <button
+                                        onClick={handleUndoLastBatch}
+                                        className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-1 rounded-lg text-xs"
+                                    >
+                                        ↩️ Eliminar Último Bloque ({lastBatchInfo.label})
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ========================================================================= */}
+                        {/* PESTAÑA 1: HOJA TIPO EXCEL INTERACTIVA (19 COLUMNAS, 350+ FILAS)         */}
+                        {/* ========================================================================= */}
+                        {activeTab === 'excel' && (
+                            <div className="bg-white rounded-2xl shadow-md border border-slate-300 overflow-hidden">
+                                <div className="bg-slate-100 px-4 py-3 border-b border-slate-300 flex flex-wrap justify-between items-center gap-3">
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        <span className="bg-[#107c41] text-white px-3 py-1.5 rounded-lg font-extrabold text-xs flex items-center gap-1.5 shadow-sm">
+                                            📗 HOJA EXCEL: 19 COLUMNAS • PEGADO EN BLOQUE ACUMULATIVO
+                                        </span>
+                                        <p className="text-xs text-slate-700">
+                                            Pega asesor por asesor con <kbd className="px-1.5 py-0.5 bg-amber-100 border border-amber-400 rounded font-extrabold text-slate-900">Ctrl + V</kbd>. Si fallas en un bloque, usa <strong>↩️ Eliminar Último Bloque</strong>.
+                                        </p>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {lastBatchInfo && (
+                                            <button
+                                                onClick={handleUndoLastBatch}
+                                                className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-extrabold text-xs shadow-sm flex items-center gap-1"
+                                            >
+                                                ↩️ Eliminar Último Bloque ({lastBatchInfo.label} • -{lastBatchInfo.addedCount} filas)
+                                            </button>
+                                        )}
+
+                                        {asesoresList.length > 0 && (
+                                            <div className="flex items-center gap-1 bg-red-50 border border-red-200 rounded-lg px-2 py-1">
+                                                <select
+                                                    className="text-xs bg-transparent text-red-800 font-bold focus:outline-none"
+                                                    value={asesorToDelete}
+                                                    onChange={(e) => setAsesorToDelete(e.target.value)}
+                                                >
+                                                    <option value="">🗑️ Borrar bloque de asesor...</option>
+                                                    {asesoresList.map(a => <option key={a} value={a}>{a}</option>)}
+                                                </select>
+                                                {asesorToDelete && (
+                                                    <button
+                                                        onClick={() => handleDeleteAdvisorBlock(asesorToDelete)}
+                                                        className="bg-red-600 text-white px-2 py-0.5 rounded text-[11px] font-bold hover:bg-red-700"
+                                                    >
+                                                        Borrar
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <label className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg cursor-pointer font-bold text-xs shadow-sm">
+                                            📁 Añadir CSV / TXT
+                                            <input type="file" accept=".csv,.txt,.tsv" className="hidden" onChange={handleFileUpload} />
+                                        </label>
+
+                                        <button
+                                            onClick={() => addEmptyRowsToSheet(100)}
+                                            className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg font-bold text-xs"
+                                        >
+                                            ➕ +100 Filas
+                                        </button>
+
+                                        <button
+                                            onClick={() => setActiveTab('panel')}
+                                            className="px-5 py-2 bg-[#16a34a] hover:bg-[#15803d] text-white rounded-xl font-extrabold text-xs shadow-md flex items-center gap-2"
+                                        >
+                                            ⚡ VER PANEL UNIFICADO ({clients.length} LÍNEAS) ➔
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Cuadrícula Tipo Excel con las 19 Columnas */}
+                                <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
+                                    <table className="min-w-max w-full excel-grid-table">
+                                        <thead className="sticky top-0 z-20">
+                                            <tr className="bg-slate-200 text-slate-600 text-[10px] font-bold">
+                                                <th className="w-10 py-1 text-center bg-slate-300">#</th>
+                                                {EXCEL_COLUMNS.map(col => (
+                                                    <th
+                                                        key={col.colLetter}
+                                                        className={`${col.width} py-1 text-center ${col.isSeparator ? 'bg-amber-200 text-amber-900' : 'bg-slate-200'}`}
+                                                    >
+                                                        Col {col.num} ({col.colLetter})
+                                                    </th>
+                                                ))}
+                                                <th className="w-10 py-1 text-center bg-slate-300">🗑️</th>
+                                            </tr>
+                                            <tr className="bg-[#107c41] text-white text-[11px] font-extrabold tracking-tight">
+                                                <th className="py-2 px-2 text-center bg-[#0c5e31]">FILA</th>
+                                                {EXCEL_COLUMNS.map(col => (
+                                                    <th
+                                                        key={col.key}
+                                                        className={`${col.width} py-2 px-2 text-center whitespace-nowrap ${col.isSeparator ? 'bg-amber-600 text-white' : ''}`}
+                                                    >
+                                                        {col.label}
+                                                    </th>
+                                                ))}
+                                                <th className="py-2 px-1 text-center bg-[#0c5e31]">Borrar</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white">
+                                            {gridRows.map((row, rIdx) => (
+                                                <ExcelRowItem
+                                                    key={rIdx}
+                                                    row={row}
+                                                    rIdx={rIdx}
+                                                    onCellChange={handleCellChange}
+                                                    onDeleteRow={deleteExcelRow}
+                                                />
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div className="bg-slate-800 text-white px-4 py-2.5 text-xs flex flex-wrap justify-between items-center gap-3">
+                                    <div className="flex flex-wrap items-center gap-4">
+                                        <span>📋 <strong>Filas ocupadas:</strong> {nonEmptyGridRowsCount} de {gridRows.length}</span>
+                                        <span>🧱 <strong>Bloques en historial:</strong> {batchHistory.length}</span>
+                                        <span>👥 <strong>Líneas Unificadas:</strong> {clients.length}</span>
+                                        <span className="text-purple-300 font-bold">⚡ <strong>Líneas Paralelas:</strong> {clients.filter(c => c.tieneParalela).length}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-red-300 font-bold">🚨 Total Exigible Hoy (Mora 0): S/ {globalMeta.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ========================================================================= */}
+                        {/* PESTAÑA 2: PANEL UNIFICADO Y DETALLADO                                    */}
+                        {/* ========================================================================= */}
+                        {activeTab === 'panel' && (
+                            <div>
+                                {/* TARJETAS KPI SUPERIORES (SE RECALCULAN AL SELECCIONAR CLIENTES) */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-red-600">
+                                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                                            Peso Cartera (Exigible) {selectedInFiltered.length > 0 && <span className="text-blue-600 font-extrabold">({selectedInFiltered.length} selec.)</span>}
+                                        </p>
+                                        <p className="text-2xl font-black text-red-600 whitespace-nowrap">S/ {calcPesoCarteraExigible.toFixed(2)}</p>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-blue-600">
+                                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                                            Total Cancelar (Cap + Int)
+                                        </p>
+                                        <p className="text-2xl font-black text-blue-700 whitespace-nowrap">S/ {calcTotalCancelarCapInt.toFixed(2)}</p>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-green-600">
+                                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                                            Total Cancelar (Capital)
+                                        </p>
+                                        <p className="text-2xl font-black text-green-700 whitespace-nowrap">S/ {calcTotalCancelarCapital.toFixed(2)}</p>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-orange-500">
+                                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                                            Mora Acumulada
+                                        </p>
+                                        <p className="text-2xl font-black text-orange-600 whitespace-nowrap">S/ {calcMoraAcumulada.toFixed(2)}</p>
+                                    </div>
+                                </div>
+
+                                {/* BARRA DE CONTROLES Y REPORTES PDF */}
+                                <div className="mb-4 flex flex-wrap gap-2.5 bg-white p-4 rounded-xl shadow-sm border border-gray-200 items-end">
+                                    <button
+                                        onClick={() => setActiveTab('excel')}
+                                        className="px-3.5 py-2 bg-[#107c41] text-white rounded-lg hover:bg-[#0c5e31] transition-colors font-bold shadow-sm text-xs flex items-center gap-1.5"
+                                    >
+                                        📊 Hoja Excel ({nonEmptyGridRowsCount})
+                                    </button>
+
+                                    {lastBatchInfo && (
+                                        <button
+                                            onClick={handleUndoLastBatch}
+                                            className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-extrabold shadow-sm text-xs flex items-center gap-1"
+                                            title="Deshacer el último bloque de asesor pegado"
+                                        >
+                                            ↩️ Deshacer ({lastBatchInfo.label})
+                                        </button>
+                                    )}
+
+                                    <button
+                                        onClick={generarPDFGestion}
+                                        className="px-3.5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-bold shadow-sm text-xs"
+                                    >
+                                        📄 RPT. LLAMADAS
+                                    </button>
+
+                                    <button
+                                        onClick={generarPDFMora}
+                                        className="px-3.5 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 transition-colors font-bold shadow-sm text-xs border-l-4 border-red-950"
+                                    >
+                                        📄 RPT. MORA
+                                    </button>
+
+                                    <div className="flex-1 min-w-[150px]">
+                                        <label className="text-[11px] font-bold text-gray-500 mb-1 block">Buscar Cliente / Teléfono</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Escribe aquí..."
+                                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-xs"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div className="min-w-[150px]">
+                                        <label className="text-[11px] font-bold text-gray-500 mb-1 block">Asesor a Cargo</label>
+                                        <select
+                                            className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 text-xs font-semibold"
+                                            value={asesorFilter}
+                                            onChange={(e) => setAsesorFilter(e.target.value)}
+                                        >
+                                            <option value="Todos">Todos los Asesores</option>
+                                            {asesoresList.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <div className="min-w-[175px]">
+                                        <label className="text-[11px] font-bold text-gray-500 mb-1 block">Prioridad de Cobro</label>
+                                        <select
+                                            className="w-full border border-blue-300 rounded-lg px-2.5 py-1.5 bg-blue-50 font-bold text-blue-900 text-xs"
+                                            value={condicionFilter}
+                                            onChange={(e) => setCondicionFilter(e.target.value)}
+                                        >
+                                            <option value="Todos">📋 Todas las Condiciones</option>
+                                            <option value="Cobrar Hoy">🔥 Cobrar Hoy (Mora + Vence)</option>
+                                            <option value="En Mora">🚨 En Mora (Atraso &gt; 0)</option>
+                                            <option value="Vence Hoy">⚠️ Vence Hoy (Atraso 0)</option>
+                                            <option value="Por Vencer">✅ Falta Pagar (Atraso &lt; 0)</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="w-24">
+                                        <label className="text-[11px] font-bold text-gray-500 mb-1 block">Atraso &ge; (Días)</label>
+                                        <input
+                                            type="number"
+                                            placeholder="Ej. 30"
+                                            className="w-full px-2.5 py-1.5 border border-blue-300 rounded-lg text-xs font-bold text-blue-900 bg-blue-50"
+                                            value={minAtrasoFilter}
+                                            onChange={(e) => setMinAtrasoFilter(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* SUB-BARRA DE SELECCIÓN, COLUMNAS VISIBLES Y WHATSAPP */}
+                                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 bg-blue-50 p-3 rounded-xl border border-blue-200 relative">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-bold text-blue-900 text-xs mr-1">
+                                            {selectedCount} clientes seleccionados
+                                        </span>
+
+                                        <button
+                                            onClick={() => setOnlyParalelasFilter(!onlyParalelasFilter)}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-extrabold border transition-all flex items-center gap-1 ${
+                                                onlyParalelasFilter
+                                                    ? 'bg-purple-700 text-white border-purple-800 shadow-sm'
+                                                    : 'bg-white text-purple-700 border-purple-300 hover:bg-purple-50'
+                                            }`}
+                                        >
+                                            ⚡ {onlyParalelasFilter ? 'Solo Paralelas' : `Paralelas (${clients.filter(c => c.tieneParalela).length})`}
+                                        </button>
+
+                                        <button
+                                            onClick={() => expandAllVisible(true)}
+                                            className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-700 border border-slate-300 hover:bg-slate-50"
+                                        >
+                                            ➕ Ver Cuotas
+                                        </button>
+                                        <button
+                                            onClick={() => expandAllVisible(false)}
+                                            className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-700 border border-slate-300 hover:bg-slate-50"
+                                        >
+                                            ➖ Contraer
+                                        </button>
+
+                                        {/* SELECTOR DE COLUMNAS VISIBLES */}
+                                        <div className="relative">
+                                            <button
+                                                onClick={() => setIsColMenuOpen(!isColMenuOpen)}
+                                                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white text-slate-700 border border-slate-300 hover:bg-slate-50"
+                                            >
+                                                👁️ Columnas
+                                            </button>
+                                            {isColMenuOpen && (
+                                                <div className="absolute left-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-40 text-xs space-y-2">
+                                                    <div className="font-extrabold text-slate-700 border-b pb-1">Mostrar / Ocultar Columnas</div>
+                                                    {[
+                                                        { k: 'primeraCuotaSinMora', label: '1ra Cuota Atr. (Sin Mora)' },
+                                                        { k: 'primeraCuotaConMora', label: '1ra Cuota + Mora' },
+                                                        { k: 'cancelarCapital', label: 'Cancelar (Capital)' },
+                                                        { k: 'cancelarCapInt', label: 'Cancelar (Cap+Int)' },
+                                                        { k: 'intMora', label: 'Int. Mora (Penalidad)' },
+                                                        { k: 'cuotaOrigVencida', label: 'C. Original (Vencida Acum.)' },
+                                                        { k: 'desembolso', label: 'Desembolso' },
+                                                        { k: 'avance', label: 'Avance %' }
+                                                    ].map(item => (
+                                                        <label key={item.k} className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={!!visibleCols[item.k]}
+                                                                onChange={() => setVisibleCols(prev => ({ ...prev, [item.k]: !prev[item.k] }))}
+                                                                className="rounded text-green-600"
+                                                            />
+                                                            {item.label}
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {selectedCount > 0 && (
+                                            <button
+                                                onClick={() => setShowOnlySelected(!showOnlySelected)}
+                                                className="text-xs text-blue-700 hover:text-blue-900 underline font-bold ml-1"
+                                            >
+                                                {showOnlySelected ? 'Mostrar toda la tabla' : '👀 Ver mi selección actual'}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <button
+                                        onClick={startBulkWhatsApp}
+                                        disabled={selectedCount === 0}
+                                        className={`px-5 py-1.5 rounded-lg font-bold shadow-sm text-xs transition-colors ${
+                                            selectedCount > 0
+                                                ? 'bg-[#25D366] hover:bg-[#128C7E] text-white cursor-pointer'
+                                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        }`}
+                                    >
+                                        📱 Enviar a la selección ({selectedCount})
+                                    </button>
+                                </div>
+
+                                {/* TABLA GENERAL UNIFICADA CON 1RA CUOTA SIN MORA Y 1RA CUOTA CON MORA */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full divide-y divide-gray-200">
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    <th className="px-2.5 py-3 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="w-4 h-4 text-green-600 rounded border-gray-300 cursor-pointer"
+                                                            checked={filteredClients.length > 0 && filteredClients.every(c => c.selected)}
+                                                            onChange={toggleSelectAll}
+                                                        />
+                                                    </th>
+                                                    <th className="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase">Atraso</th>
+                                                    <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase">Cliente / Celular</th>
+                                                    <th className="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase">Cuotas<br/>Atr.</th>
+
+                                                    {visibleCols.avance && (
+                                                        <th className="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase">Avance</th>
+                                                    )}
+
+                                                    {visibleCols.desembolso && (
+                                                        <th className="px-2.5 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                                                            Desembolso<br/>
+                                                            <span className="text-gray-800 font-bold text-[10px] whitespace-nowrap">S/ {calcDesembolso.toFixed(2)}</span>
+                                                        </th>
+                                                    )}
+
+                                                    {visibleCols.cancelarCapital && (
+                                                        <th className="px-2.5 py-3 text-right text-xs font-medium text-green-700 uppercase border-l border-gray-200">
+                                                            Cancelar<br/>(Capital)<br/>
+                                                            <span className="font-bold text-[10px] whitespace-nowrap">S/ {calcTotalCancelarCapital.toFixed(2)}</span>
+                                                        </th>
+                                                    )}
+
+                                                    {visibleCols.cancelarCapInt && (
+                                                        <th className="px-2.5 py-3 text-right text-xs font-medium text-blue-700 uppercase border-r border-gray-200">
+                                                            Cancelar<br/>(Cap+Int)<br/>
+                                                            <span className="font-bold text-[10px] whitespace-nowrap">S/ {calcTotalCancelarCapInt.toFixed(2)}</span>
+                                                        </th>
+                                                    )}
+
+                                                    {/* NUEVAS COLUMNAS SOLICITADAS: 1ERA CUOTA ATRASADA SIN MORA Y 1ERA CUOTA CON MORA */}
+                                                    {visibleCols.primeraCuotaSinMora && (
+                                                        <th className="px-2.5 py-3 text-right text-xs font-bold text-slate-700 uppercase bg-slate-100/80 border-l border-gray-200">
+                                                            1ra Cuota Atr.<br/>(Sin Mora)<br/>
+                                                            <span className="text-slate-900 font-extrabold text-[10px] whitespace-nowrap">S/ {calcPrimeraCuotaSinMora.toFixed(2)}</span>
+                                                        </th>
+                                                    )}
+
+                                                    {visibleCols.primeraCuotaConMora && (
+                                                        <th className="px-2.5 py-3 text-right text-xs font-bold text-rose-700 uppercase bg-rose-50/60 border-r border-gray-200">
+                                                            1ra Cuota<br/>+ Mora<br/>
+                                                            <span className="text-rose-800 font-extrabold text-[10px] whitespace-nowrap">S/ {calcPrimeraCuotaConMora.toFixed(2)}</span>
+                                                        </th>
+                                                    )}
+
+                                                    {visibleCols.cuotaOrigVencida && (
+                                                        <th className="px-2.5 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                                                            C. Original<br/>(Vencida)<br/>
+                                                            <span className="text-gray-800 font-bold text-[10px] whitespace-nowrap">S/ {calcCuotaOriVencida.toFixed(2)}</span>
+                                                        </th>
+                                                    )}
+
+                                                    {visibleCols.intMora && (
+                                                        <th className="px-2.5 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                                                            Int. Mora<br/>(Penalidad)<br/>
+                                                            <span className="text-orange-600 font-bold text-[10px] whitespace-nowrap">S/ {calcMoraAcumulada.toFixed(2)}</span>
+                                                        </th>
+                                                    )}
+
+                                                    <th className="px-3 py-3 text-right text-xs font-bold text-red-700 uppercase bg-red-50">
+                                                        Exigible HOY<br/>
+                                                        <span className="text-[9px] font-normal text-red-500 block leading-tight mb-0.5">(Para dejar mora en 0)</span>
+                                                        <span className="text-[11px] font-black whitespace-nowrap">S/ {calcPesoCarteraExigible.toFixed(2)}</span>
+                                                    </th>
+
+                                                    <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase border-l border-gray-200">WA</th>
+                                                    <th className="px-1 py-3 text-center text-[10px] font-medium text-gray-500 uppercase leading-tight">Gestión<br/>Llamada</th>
+                                                    <th className="px-1 py-3 text-center text-[10px] font-medium text-gray-500 uppercase leading-tight">Gestión<br/>WA</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-white divide-y divide-gray-200">
+                                                {clients.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={16} className="px-6 py-16 text-center text-gray-500">
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="text-4xl mb-3">📊</span>
+                                                                <span className="font-extrabold text-lg text-slate-800">La Hoja Excel de 19 Columnas está vacía</span>
+                                                                <span className="text-sm mt-1 mb-4">Copia el bloque de tu asesor en Excel y presiona <strong>Ctrl + V</strong> aquí o en la pestaña <strong>1. HOJA EXCEL</strong>.</span>
+                                                                <button
+                                                                    onClick={() => setActiveTab('excel')}
+                                                                    className="bg-[#107c41] hover:bg-[#0c5e31] text-white font-bold px-5 py-2.5 rounded-xl shadow-md text-sm"
+                                                                >
+                                                                    📊 Ir a la Hoja Excel (350 Filas)
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ) : filteredClients.map((client) => {
+                                                    const isExpanded = !!expandedRowIds[client.id];
+                                                    return (
+                                                        <React.Fragment key={client.id}>
+                                                            <tr className={`hover:bg-gray-50 transition-colors ${client.selected ? 'bg-blue-50/50' : client.tieneParalela ? 'bg-purple-50/20' : ''}`}>
+                                                                <td className="px-2.5 py-3.5 text-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="w-4 h-4 text-green-600 rounded border-gray-300 cursor-pointer"
+                                                                        checked={client.selected}
+                                                                        onChange={() => toggleSelect(client.id)}
+                                                                    />
+                                                                </td>
+
+                                                                <td className="px-2 py-3.5 whitespace-nowrap text-center">
+                                                                    {client.condicion === 'En Mora' ? (
+                                                                        <span className="px-2 py-1 bg-red-100 text-red-800 rounded-md font-bold text-xs border border-red-200">
+                                                                            🚨 {client.maxAtraso}d
+                                                                        </span>
+                                                                    ) : client.condicion === 'Vence Hoy' ? (
+                                                                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-md font-bold text-xs border border-yellow-300">
+                                                                            ⚠️ Vence Hoy
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md font-bold text-xs border border-green-200">
+                                                                            ✅ {client.maxAtraso}d
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+
+                                                                <td className="px-3 py-3.5 text-sm font-medium text-gray-900">
+                                                                    <div className="flex items-center flex-wrap gap-1.5">
+                                                                        <span
+                                                                            onClick={() => toggleExpandRow(client.id)}
+                                                                            className="font-bold cursor-pointer hover:text-green-700"
+                                                                            title="Clic para desplegar todas las cuotas del cliente"
+                                                                        >
+                                                                            {toTitleCase(client.nombre)}
+                                                                        </span>
+                                                                        {client.tieneParalela && (
+                                                                            <span className="px-2 py-0.5 bg-purple-100 text-purple-800 border border-purple-300 rounded-full text-[10px] font-extrabold uppercase">
+                                                                                ⚡ Paralela {client.numeroLinea}/{client.totalLineasCliente}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-gray-500 text-xs mt-0.5 flex flex-wrap gap-1.5">
+                                                                        <span>📞 {client.celular}</span>
+                                                                        <span>| 👤 {client.asesor}</span>
+                                                                        {client.credito && <span className="font-semibold text-slate-600">| Créd #{client.credito}</span>}
+                                                                    </div>
+                                                                </td>
+
+                                                                {/* CUOTAS ATRASADAS + BOTÓN DESPLEGAR INTEGRADO PARA AHORRAR ESPACIO */}
+                                                                <td className="px-2 py-3.5 text-center whitespace-nowrap">
+                                                                    <button
+                                                                        onClick={() => toggleExpandRow(client.id)}
+                                                                        className={`px-2.5 py-1 rounded-lg text-xs font-extrabold border transition-all ${
+                                                                            isExpanded
+                                                                                ? 'bg-slate-800 text-white border-slate-900'
+                                                                                : 'bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200'
+                                                                        }`}
+                                                                        title="Clic para ver el desglose de cuotas"
+                                                                    >
+                                                                        {client.cuotasAtrasadas > 0 ? client.cuotasAtrasadas : client.cuotasVenceHoy} {isExpanded ? '▲' : '▼'}
+                                                                    </button>
+                                                                </td>
+
+                                                                {visibleCols.avance && (
+                                                                    <td className="px-2 py-3.5 text-center text-sm font-bold text-blue-600 whitespace-nowrap">
+                                                                        {client.avancePorcentaje.toFixed(1)}%
+                                                                    </td>
+                                                                )}
+
+                                                                {visibleCols.desembolso && (
+                                                                    <td className="px-2.5 py-3.5 text-sm text-right text-gray-500 font-medium whitespace-nowrap">
+                                                                        {client.montoDesembolsado > 0 ? `S/ ${client.montoDesembolsado.toFixed(2)}` : '-'}
+                                                                    </td>
+                                                                )}
+
+                                                                {visibleCols.cancelarCapital && (
+                                                                    <td className="px-2.5 py-3.5 text-sm text-right text-green-700 font-bold border-l border-gray-100 whitespace-nowrap">
+                                                                        {client.saldoCapital > 0 ? `S/ ${client.saldoCapital.toFixed(2)}` : '-'}
+                                                                    </td>
+                                                                )}
+
+                                                                {visibleCols.cancelarCapInt && (
+                                                                    <td className="px-2.5 py-3.5 text-sm text-right text-blue-700 font-bold border-r border-gray-100 whitespace-nowrap">
+                                                                        {client.montoCancelarCapInt > 0 ? `S/ ${client.montoCancelarCapInt.toFixed(2)}` : '-'}
+                                                                    </td>
+                                                                )}
+
+                                                                {/* 1ERA CUOTA ATRASADA SIN MORA */}
+                                                                {visibleCols.primeraCuotaSinMora && (
+                                                                    <td className="px-2.5 py-3.5 text-sm text-right font-bold text-slate-800 bg-slate-50/70 border-l border-gray-100 whitespace-nowrap">
+                                                                        {client.cuotaMasAntiguaBase > 0 ? `S/ ${client.cuotaMasAntiguaBase.toFixed(2)}` : '-'}
+                                                                    </td>
+                                                                )}
+
+                                                                {/* 1ERA CUOTA CON MORA */}
+                                                                {visibleCols.primeraCuotaConMora && (
+                                                                    <td className="px-2.5 py-3.5 text-sm text-right font-extrabold text-rose-700 bg-rose-50/40 border-r border-gray-100 whitespace-nowrap">
+                                                                        {client.cuotaMasAntiguaTotal > 0 ? `S/ ${client.cuotaMasAntiguaTotal.toFixed(2)}` : '-'}
+                                                                    </td>
+                                                                )}
+
+                                                                {visibleCols.cuotaOrigVencida && (
+                                                                    <td className="px-2.5 py-3.5 text-sm text-right text-gray-600 font-medium whitespace-nowrap">
+                                                                        {client.cuotaOriginalVencida > 0 ? `S/ ${client.cuotaOriginalVencida.toFixed(2)}` : '-'}
+                                                                    </td>
+                                                                )}
+
+                                                                {visibleCols.intMora && (
+                                                                    <td className="px-2.5 py-3.5 text-sm text-right text-orange-600 font-medium whitespace-nowrap">
+                                                                        {client.moraGeneradaVencida > 0 ? `S/ ${client.moraGeneradaVencida.toFixed(2)}` : '-'}
+                                                                    </td>
+                                                                )}
+
+                                                                <td className="px-3 py-3.5 text-sm text-right font-bold text-red-700 bg-red-50/50 border-l border-r border-red-100 whitespace-nowrap">
+                                                                    {client.totalCobrarHoy > 0 ? `S/ ${client.totalCobrarHoy.toFixed(2)}` : 'S/ 0.00'}
+                                                                </td>
+
+                                                                <td className="px-2 py-3.5 whitespace-nowrap text-center border-l border-gray-100">
+                                                                    <button
+                                                                        onClick={() => sendIndividualWhatsApp(client)}
+                                                                        title="Enviar Mensaje Directo"
+                                                                        className="inline-flex items-center justify-center p-2 rounded-full bg-green-50 text-green-600 hover:bg-green-100 border border-green-200"
+                                                                    >
+                                                                        📲
+                                                                    </button>
+                                                                </td>
+                                                                <td className="px-1 py-3.5 text-center">
+                                                                    <select
+                                                                        className={`text-[10px] rounded-full px-1 py-1 w-24 font-semibold border focus:outline-none ${getDropdownColor(client.estadoLlamada)}`}
+                                                                        value={client.estadoLlamada}
+                                                                        onChange={(e) => handleStatusChange(client.id, 'estadoLlamada', e.target.value)}
+                                                                    >
+                                                                        {LLAMADA_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-white text-gray-800">{opt}</option>)}
+                                                                    </select>
+                                                                </td>
+                                                                <td className="px-1 py-3.5 text-center">
+                                                                    <select
+                                                                        className={`text-[10px] rounded-full px-1 py-1 w-24 font-semibold border focus:outline-none ${getDropdownColor(client.estadoWA)}`}
+                                                                        value={client.estadoWA}
+                                                                        onChange={(e) => handleStatusChange(client.id, 'estadoWA', e.target.value)}
+                                                                    >
+                                                                        {WA_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-white text-gray-800">{opt}</option>)}
+                                                                    </select>
+                                                                </td>
+                                                            </tr>
+
+                                                            {/* ACORDEÓN DESPLEGABLE DE CUOTAS */}
+                                                            {isExpanded && (
+                                                                <tr className="bg-slate-100 border-b-2 border-slate-300">
+                                                                    <td colSpan={16} className="p-4">
+                                                                        <div className="bg-white rounded-xl p-4 shadow-inner border border-slate-200">
+                                                                            <div className="flex flex-wrap justify-between items-start gap-3 mb-3 pb-2 border-b border-slate-100">
+                                                                                <div>
+                                                                                    <h4 className="text-sm font-extrabold text-slate-800">
+                                                                                        📊 Desglose de Línea de Crédito — {toTitleCase(client.nombre)}
+                                                                                        {client.credito && <span className="ml-2 text-xs bg-slate-100 px-2 py-0.5 rounded">Crédito #{client.credito}</span>}
+                                                                                        <span className="ml-2 text-xs bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
+                                                                                            Desembolso: S/ {client.montoDesembolsado.toFixed(2)} | Plazo: {client.plazoRaw}
+                                                                                        </span>
+                                                                                    </h4>
+                                                                                    <p className="text-xs text-slate-600 mt-1">
+                                                                                        📍 <strong>Dirección:</strong> {client.direccion || 'No registrada'} | 🧭 <strong>Referencia:</strong> {client.referencia || 'Sin referencia'}
+                                                                                    </p>
+                                                                                </div>
+                                                                                <div className="flex gap-2 text-xs font-bold">
+                                                                                    <span className="bg-red-50 text-red-700 px-2.5 py-1 rounded border border-red-200">
+                                                                                        Exigible Hoy (Atraso &ge; 0): S/ {client.totalCobrarHoy.toFixed(2)}
+                                                                                    </span>
+                                                                                    <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded border border-emerald-200">
+                                                                                        Falta Pagar (Atraso &lt; 0): S/ {client.montoPorVencerFuturo.toFixed(2)}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {client.tieneParalela && client.otrasLineasResumen.length > 0 && (
+                                                                                <div className="mb-3 p-2.5 bg-purple-50 border border-purple-200 rounded-lg text-xs text-purple-900 flex flex-wrap justify-between items-center gap-2">
+                                                                                    <span><strong>⚡ Líneas Paralelas de {toTitleCase(client.nombre)}:</strong></span>
+                                                                                    <div className="flex flex-wrap gap-2">
+                                                                                        {client.otrasLineasResumen.map((ol, i) => (
+                                                                                            <span key={i} className="bg-white px-2.5 py-1 rounded border border-purple-300 font-bold">
+                                                                                                {ol.credito ? `Créd #${ol.credito}` : 'Otra Línea'} • Desembolso: S/ {ol.desembolso.toFixed(2)} ({ol.plazoRaw}) • Atraso: {ol.maxAtraso}d • Exigible: S/ {ol.totalCobrarHoy.toFixed(2)}
+                                                                                            </span>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+
+                                                                            <table className="min-w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
+                                                                                <thead className="bg-slate-800 text-white uppercase text-[10px]">
+                                                                                    <tr>
+                                                                                        <th className="py-2 px-3 text-center">N CUOTA (Col 3)</th>
+                                                                                        <th className="py-2 px-3 text-center">ATRASO (Col 5)</th>
+                                                                                        <th className="py-2 px-3 text-center">Estado de Cuota</th>
+                                                                                        <th className="py-2 px-3 text-right">CUOTA ORIG (Col 16)</th>
+                                                                                        <th className="py-2 px-3 text-right">MORA CUOTA (Col 17)</th>
+                                                                                        <th className="py-2 px-3 text-right">SALDO K CUOTA (Col 8)</th>
+                                                                                        <th className="py-2 px-3 text-right">SALDO- CUOTA (Col 7)</th>
+                                                                                    </tr>
+                                                                                </thead>
+                                                                                <tbody className="divide-y divide-slate-200">
+                                                                                    {client.cuotasDetalle.map((cDet, idx) => {
+                                                                                        const isMora = cDet.atraso > 0;
+                                                                                        const isHoy = cDet.atraso === 0;
+                                                                                        return (
+                                                                                            <tr key={idx} className={isMora ? 'bg-red-50/40' : isHoy ? 'bg-yellow-50/50' : 'bg-emerald-50/20'}>
+                                                                                                <td className="py-2 px-3 text-center font-extrabold">Cuota #{cDet.nCuota}</td>
+                                                                                                <td className="py-2 px-3 text-center font-black">
+                                                                                                    <span className={`px-2 py-0.5 rounded ${isMora ? 'bg-red-100 text-red-800' : isHoy ? 'bg-yellow-200 text-yellow-900' : 'bg-emerald-100 text-emerald-800'}`}>
+                                                                                                        {cDet.atraso} días
+                                                                                                    </span>
+                                                                                                </td>
+                                                                                                <td className="py-2 px-3 text-center font-bold">
+                                                                                                    {isMora ? (
+                                                                                                        <span className="text-red-700">🚨 Días de Mora</span>
+                                                                                                    ) : isHoy ? (
+                                                                                                        <span className="text-amber-700">⚠️ Vence Hoy</span>
+                                                                                                    ) : (
+                                                                                                        <span className="text-emerald-700">✅ Falta Pagar (Vence en {Math.abs(cDet.atraso)}d)</span>
+                                                                                                    )}
+                                                                                                </td>
+                                                                                                <td className="py-2 px-3 text-right">S/ {cDet.cuotaOrig.toFixed(2)}</td>
+                                                                                                <td className="py-2 px-3 text-right text-orange-600 font-semibold">S/ {cDet.moraCuota.toFixed(2)}</td>
+                                                                                                <td className="py-2 px-3 text-right text-green-700 font-semibold">S/ {cDet.saldoKCuota.toFixed(2)}</td>
+                                                                                                <td className="py-2 px-3 text-right font-extrabold text-slate-900">S/ {cDet.saldoCuota.toFixed(2)}</td>
+                                                                                            </tr>
+                                                                                        );
+                                                                                    })}
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </React.Fragment>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        function App() {
+            const [currentUser, setCurrentUser] = React.useState(() => {
+                try {
+                    const saved = localStorage.getItem(STORAGE_SESSION_KEY);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (parsed && isCajeroRole(parsed.categoria)) return parsed;
+                    }
+                } catch (e) {}
+                return null;
+            });
+
+            const [usersList, setUsersList] = React.useState(() => {
+                try {
+                    const cached = localStorage.getItem(STORAGE_USERS_CACHE_KEY);
+                    return cached ? JSON.parse(cached) : [];
+                } catch (e) {
+                    return [];
+                }
+            });
+            const [isLoadingUsers, setIsLoadingUsers] = React.useState(false);
+            const [syncError, setSyncError] = React.useState(false);
+
+            const syncUsersFromNetwork = React.useCallback(async () => {
+                setIsLoadingUsers(true);
+                setSyncError(false);
+                const endpointsToTry = [
+                    USER_NETWORK_SCRIPT_URL,
+                    `${USER_NETWORK_SCRIPT_URL}?action=getUsuarios`,
+                    `${USER_NETWORK_SCRIPT_URL}?action=usuarios`,
+                    `${USER_NETWORK_SCRIPT_URL}?hoja=USUARIOS`
+                ];
+
+                for (let url of endpointsToTry) {
+                    try {
+                        const response = await fetch(url);
+                        if (response.ok) {
+                            const data = await response.json();
+                            const normalized = normalizeUsersFromPayload(data);
+                            if (normalized.length > 0) {
+                                setUsersList(normalized);
+                                try {
+                                    localStorage.setItem(STORAGE_USERS_CACHE_KEY, JSON.stringify(normalized));
+                                } catch (e) {}
+                                setIsLoadingUsers(false);
+                                return;
+                            }
+                        }
+                    } catch (err) {
+                        // Intentar siguiente formato de endpoint
+                    }
+                }
+
+                setIsLoadingUsers(false);
+                setSyncError(true);
+            }, []);
+
+            React.useEffect(() => {
+                syncUsersFromNetwork();
+            }, [syncUsersFromNetwork]);
+
+            const handleLoginSuccess = (userObj, remember) => {
+                setCurrentUser(userObj);
+                if (remember) {
+                    try {
+                        localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(userObj));
+                    } catch (e) {}
+                }
+            };
+
+            const handleLogout = () => {
+                setCurrentUser(null);
+                localStorage.removeItem(STORAGE_SESSION_KEY);
+            };
+
+            if (!currentUser) {
+                return (
+                    <LoginScreen
+                        onLoginSuccess={handleLoginSuccess}
+                        usersList={usersList}
+                        isLoadingUsers={isLoadingUsers}
+                        syncError={syncError}
+                        onRetrySync={syncUsersFromNetwork}
+                    />
+                );
+            }
+
+            return (
+                <CobranzasDashboard
+                    currentUser={currentUser}
+                    usersList={usersList}
+                    onLogout={handleLogout}
+                />
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
