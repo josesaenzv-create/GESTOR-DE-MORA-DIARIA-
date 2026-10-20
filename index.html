@@ -43,36 +43,36 @@
         const INITIAL_ROW_COUNT = 350;
         const EXPECTED_COLUMN_COUNT = 19;
 
-        const STORAGE_GRID_KEY = 'crediban_excel_grid_19cols_v2';
-        const STORAGE_STATUS_KEY = 'crediban_status_map_19cols_v2';
+        const STORAGE_GRID_KEY = 'crediban_excel_grid_19cols_v3';
+        const STORAGE_STATUS_KEY = 'crediban_status_map_19cols_v3';
         const STORAGE_SESSION_KEY = 'crediban_cajero_session_v2';
         const STORAGE_USERS_CACHE_KEY = 'crediban_users_network_cache_v2';
 
-        // DEFINICIÓN EXACTA DE LAS 19 COLUMNAS DE LA HOJA EXCEL
+        // DEFINICIÓN EXACTA DE LAS 19 COLUMNAS EN EL ORDEN OFICIAL VERIFICADO
         const EXCEL_COLUMNS = [
-            { num: 1,  colLetter: 'B', key: 'cli',         label: 'CLI',           width: 'w-16', align: 'text-center' },
-            { num: 2,  colLetter: 'C', key: 'credito',     label: 'CREDITO',       width: 'w-20', align: 'text-center' },
-            { num: 3,  colLetter: 'D', key: 'nCuota',      label: 'N CUOTA',       width: 'w-16', align: 'text-center' },
-            { num: 4,  colLetter: 'E', key: 'cliente',     label: 'CLIENTE',       width: 'w-64', align: 'text-left' },
-            { num: 5,  colLetter: 'F', key: 'atraso',      label: 'ATRASO',        width: 'w-20', align: 'text-center' },
-            { num: 6,  colLetter: 'G', key: 'telefono',    label: 'TELEFONO',      width: 'w-28', align: 'text-center' },
-            { num: 7,  colLetter: 'H', key: 'saldoCuota',  label: 'SALDO- CUOTA',  width: 'w-28', align: 'text-right' },
-            { num: 8,  colLetter: 'I', key: 'saldoKCuota', label: 'SALDO K CUOTA', width: 'w-28', align: 'text-right' },
-            { num: 9,  colLetter: 'J', key: 'separador',   label: 'SEPARADOR',     width: 'w-20', align: 'text-center', isSeparator: true },
-            { num: 10, colLetter: 'K', key: 'totalSaldo',  label: 'TOTAL. SALDO',  width: 'w-28', align: 'text-right' },
-            { num: 11, colLetter: 'L', key: 'direccion',   label: 'DIRECCION',     width: 'w-56', align: 'text-left' },
-            { num: 12, colLetter: 'M', key: 'referencia',  label: 'S REFERENCIA',  width: 'w-48', align: 'text-left' },
-            { num: 13, colLetter: 'N', key: 'desembolso',  label: 'DESEMBOLSO',    width: 'w-28', align: 'text-right' },
-            { num: 14, colLetter: 'O', key: 'saldoKCred',  label: 'SALDO K CRED',  width: 'w-28', align: 'text-right' },
-            { num: 15, colLetter: 'P', key: 'plazo',       label: 'PLAZO',         width: 'w-24', align: 'text-center' },
-            { num: 16, colLetter: 'Q', key: 'cuotaOrig',   label: 'CUOTA ORIG',    width: 'w-28', align: 'text-right' },
-            { num: 17, colLetter: 'R', key: 'moraCuota',   label: 'MORA CUOTA',    width: 'w-28', align: 'text-right' },
-            { num: 18, colLetter: 'S', key: 'grupo',       label: 'GRUPO',         width: 'w-24', align: 'text-center' },
-            { num: 19, colLetter: 'T', key: 'asesor',      label: 'ASESOR',        width: 'w-40', align: 'text-left' }
+            { num: 1,  colLetter: 'B', key: 'cli',         label: 'CLI',                 width: 'w-16', align: 'text-center' },
+            { num: 2,  colLetter: 'C', key: 'credito',     label: 'CREDITO',             width: 'w-20', align: 'text-center' },
+            { num: 3,  colLetter: 'D', key: 'cliente',     label: 'CLIENTE',             width: 'w-64', align: 'text-left' },
+            { num: 4,  colLetter: 'E', key: 'telefono',    label: 'TELEFONO',            width: 'w-28', align: 'text-center' },
+            { num: 5,  colLetter: 'F', key: 'nCuota',      label: '# CUOTA',             width: 'w-20', align: 'text-center' },
+            { num: 6,  colLetter: 'G', key: 'atraso',      label: 'ATRASO',              width: 'w-20', align: 'text-center', isAtrasoHeader: true },
+            { num: 7,  colLetter: 'H', key: 'saldoCuota',  label: 'SALDO- CUOTAS',       width: 'w-28', align: 'text-right' },
+            { num: 8,  colLetter: 'I', key: 'saldoKCuota', label: 'SALDO K CUOTAS',      width: 'w-28', align: 'text-right' },
+            { num: 9,  colLetter: 'J', key: 'separador',   label: 'SEPARADOR',           width: 'w-20', align: 'text-center', isSeparator: true },
+            { num: 10, colLetter: 'K', key: 'totalSaldo',  label: 'TOTAL. SALDO CUOTAS', width: 'w-32', align: 'text-right' },
+            { num: 11, colLetter: 'L', key: 'direccion',   label: 'DIRECCION',           width: 'w-56', align: 'text-left' },
+            { num: 12, colLetter: 'M', key: 'referencia',  label: 'REFERENCIA',          width: 'w-48', align: 'text-left' },
+            { num: 13, colLetter: 'N', key: 'desembolso',  label: 'DESEMBOLSO',          width: 'w-28', align: 'text-right' },
+            { num: 14, colLetter: 'O', key: 'saldoKCred',  label: 'SALDO K CRED',        width: 'w-28', align: 'text-right' },
+            { num: 15, colLetter: 'P', key: 'plazo',       label: 'PLAZO',               width: 'w-24', align: 'text-center' },
+            { num: 16, colLetter: 'Q', key: 'cuotaOrig',   label: 'CUOTA ORIGINL',       width: 'w-28', align: 'text-right' },
+            { num: 17, colLetter: 'R', key: 'moraCuota',   label: 'MORA_CUOTA',          width: 'w-28', align: 'text-right' },
+            { num: 18, colLetter: 'S', key: 'grupo',       label: 'GRUPO',               width: 'w-24', align: 'text-center' },
+            { num: 19, colLetter: 'T', key: 'asesor',      label: 'ASESOR',              width: 'w-40', align: 'text-left' }
         ];
 
         const createEmptyExcelRow = () => ({
-            cli: '', credito: '', nCuota: '', cliente: '', atraso: '', telefono: '',
+            cli: '', credito: '', cliente: '', telefono: '', nCuota: '', atraso: '',
             saldoCuota: '', saldoKCuota: '', separador: '', totalSaldo: '', direccion: '', referencia: '',
             desembolso: '', saldoKCred: '', plazo: '', cuotaOrig: '', moraCuota: '', grupo: '', asesor: ''
         });
@@ -205,7 +205,6 @@
 
             const normalized = [];
 
-            // Si es una matriz 2D (filas de Google Sheets)
             if (Array.isArray(rawList[0])) {
                 const firstRowUpper = rawList[0].map(c => String(c || '').toUpperCase().trim());
                 const hasHeaders = firstRowUpper.some(h =>
@@ -237,7 +236,6 @@
                     const sede = String(r[idxSede] ?? 'General').trim();
                     const estado = String(r[idxEstado] ?? 'ACTIVO').trim().toUpperCase();
 
-                    // Si la categoría estaba en otra columna, buscar si alguna celda dice CAJERO / ASESOR / GERENTE / ADMINISTRADOR
                     if (!categoria || (!categoria.toUpperCase().includes('CAJ') && !categoria.toUpperCase().includes('ASESOR') && !categoria.toUpperCase().includes('ADMIN') && !categoria.toUpperCase().includes('GERENT') && !categoria.toUpperCase().includes('TRABAJ'))) {
                         const foundRoleCell = r.find(cell => {
                             const u = String(cell || '').toUpperCase().trim();
@@ -251,7 +249,6 @@
                     }
                 }
             } else {
-                // Si es un arreglo de objetos JSON
                 rawList.forEach(obj => {
                     if (!obj || typeof obj !== 'object') return;
                     const keys = Object.keys(obj);
@@ -294,7 +291,11 @@
         };
 
         // ============================================================================
-        // DECODIFICADOR DE TEXTO PEGADO DE EXCEL A LAS 19 COLUMNAS
+        // DECODIFICADOR DE TEXTO PEGADO DE EXCEL A LAS 19 COLUMNAS OFICIALES
+        // Orden: 0:CLI | 1:CREDITO | 2:CLIENTE | 3:TELEFONO | 4:# CUOTA | 5:ATRASO
+        //        6:SALDO- CUOTAS | 7:SALDO K CUOTAS | 8:SEPARADOR | 9:TOTAL. SALDO CUOTAS
+        //        10:DIRECCION | 11:REFERENCIA | 12:DESEMBOLSO | 13:SALDO K CRED | 14:PLAZO
+        //        15:CUOTA ORIGINL | 16:MORA_CUOTA | 17:GRUPO | 18:ASESOR
         // ============================================================================
         const convertPastedTextToExcelRows = (rawText) => {
             if (!rawText || !rawText.trim()) return { rows: [], maxColsDetected: 0, incompleteRowsCount: 0 };
@@ -340,10 +341,10 @@
                 parsedGridRows.push({
                     cli:         cols[0]  || '',
                     credito:     cols[1]  || '',
-                    nCuota:      cols[2]  || '',
-                    cliente:     cols[3]  || '',
-                    atraso:      cols[4]  || '',
-                    telefono:    cols[5]  || '',
+                    cliente:     cols[2]  || '',
+                    telefono:    cols[3]  || '',
+                    nCuota:      cols[4]  || '',
+                    atraso:      cols[5]  || '',
                     saldoCuota:  cols[6]  || '',
                     saldoKCuota: cols[7]  || '',
                     separador:   cols[8]  || '',
@@ -379,19 +380,19 @@
             mainRows.forEach(r => {
                 if (!String(r.cli || '').trim()) missingColsSet.add('1. CLI');
                 if (!String(r.credito || '').trim()) missingColsSet.add('2. CREDITO');
-                if (!String(r.nCuota || '').trim()) missingColsSet.add('3. N CUOTA');
-                if (!String(r.cliente || '').trim()) missingColsSet.add('4. CLIENTE');
-                if (String(r.atraso ?? '').trim() === '') missingColsSet.add('5. ATRASO');
-                if (!String(r.telefono || '').trim()) missingColsSet.add('6. TELEFONO');
-                if (!String(r.saldoCuota || '').trim()) missingColsSet.add('7. SALDO- CUOTA');
-                if (!String(r.saldoKCuota || '').trim()) missingColsSet.add('8. SALDO K CUOTA');
-                if (!String(r.totalSaldo || '').trim()) missingColsSet.add('10. TOTAL. SALDO');
+                if (!String(r.cliente || '').trim()) missingColsSet.add('3. CLIENTE');
+                if (!String(r.telefono || '').trim()) missingColsSet.add('4. TELEFONO');
+                if (!String(r.nCuota || '').trim()) missingColsSet.add('5. # CUOTA');
+                if (String(r.atraso ?? '').trim() === '') missingColsSet.add('6. ATRASO');
+                if (!String(r.saldoCuota || '').trim()) missingColsSet.add('7. SALDO- CUOTAS');
+                if (!String(r.saldoKCuota || '').trim()) missingColsSet.add('8. SALDO K CUOTAS');
+                if (!String(r.totalSaldo || '').trim()) missingColsSet.add('10. TOTAL. SALDO CUOTAS');
                 if (!String(r.direccion || '').trim()) missingColsSet.add('11. DIRECCION');
                 if (!String(r.desembolso || '').trim()) missingColsSet.add('13. DESEMBOLSO');
                 if (!String(r.saldoKCred || '').trim()) missingColsSet.add('14. SALDO K CRED');
                 if (!String(r.plazo || '').trim()) missingColsSet.add('15. PLAZO');
-                if (!String(r.cuotaOrig || '').trim()) missingColsSet.add('16. CUOTA ORIG');
-                if (String(r.moraCuota ?? '').trim() === '') missingColsSet.add('17. MORA CUOTA');
+                if (!String(r.cuotaOrig || '').trim()) missingColsSet.add('16. CUOTA ORIGINL');
+                if (String(r.moraCuota ?? '').trim() === '') missingColsSet.add('17. MORA_CUOTA');
             });
 
             const anyAsesor = activeRows.some(r =>
@@ -818,7 +819,7 @@
                     }
                 }
 
-                // 2. Intentar validación directa por POST/GET al Script por si el endpoint valida individualmente
+                // 2. Intentar validación directa al Script
                 try {
                     const queryUrl = `${USER_NETWORK_SCRIPT_URL}?action=login&usuario=${encodeURIComponent(cleanUser)}&clave=${encodeURIComponent(cleanPass)}`;
                     const res = await fetch(queryUrl);
@@ -857,11 +858,9 @@
                             return;
                         }
                     }
-                } catch (err) {
-                    // Continuar a verificación de respaldo si falla la red
-                }
+                } catch (err) {}
 
-                // 3. Respaldo Maestro de Caja en caso de caída de red o acceso maestro de Caja
+                // 3. Respaldo Maestro de Caja
                 if ((cleanUser.toUpperCase() === 'CAJERO' || cleanUser.toUpperCase() === 'CAJA' || cleanUser.toUpperCase() === 'ADMINCAJA') && cleanPass === 'CREDICAJA123') {
                     setIsValidating(false);
                     onLoginSuccess({
@@ -892,7 +891,6 @@
                             Gestión de Notificaciones y Unificación - CREDIBAN PERÚ
                         </p>
 
-                        {/* Estado de Red de Usuarios */}
                         <div className="mb-5 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
                             {isLoadingUsers ? (
                                 <span className="text-blue-700 font-semibold flex items-center gap-2">
@@ -987,7 +985,6 @@
         const DEFAULT_TEMPLATE = `Estimado cliente: \n*{nombre}*\nEl area especializada de cobranza de CREDIBAN, le hace recordar que tiene {cuotasMora} cuota(s) pendiente(s) de pago lo cual esta generando interes moratorio.\nContactar con su asesor de credito.\nSiempre atento a brindarle asesoramiento continuo.\nSi ejecuto su pago omite el mensaje.\nCREDIBAN, creciendo contigo.`;
 
         function CobranzasDashboard({ currentUser, usersList, onLogout }) {
-            // Inicializar con 350 filas por defecto
             const [gridRows, setGridRows] = React.useState(() => {
                 try {
                     const saved = localStorage.getItem(STORAGE_GRID_KEY);
@@ -1001,7 +998,6 @@
                 return createInitialEmptyGrid(INITIAL_ROW_COUNT);
             });
 
-            // Historial de Bloques Pegados para poder Deshacer / Eliminar el último bloque añadido
             const [batchHistory, setBatchHistory] = React.useState([]);
 
             const [statusMap, setStatusMap] = React.useState(() => {
@@ -1015,7 +1011,6 @@
 
             const [columnWarning, setColumnWarning] = React.useState(null);
 
-            // Control de columnas visibles en el Panel Web (por defecto ocultamos Desembolso y C. Original Vencida para dar espacio a 1ra Cuota Sin Mora y 1ra Cuota Con Mora)
             const [visibleCols, setVisibleCols] = React.useState({
                 avance: true,
                 cancelarCapital: true,
@@ -1028,7 +1023,6 @@
             });
             const [isColMenuOpen, setIsColMenuOpen] = React.useState(false);
 
-            // Modal de confirmación de Limpieza / Eliminación validado con usuario/contraseña de CAJERO
             const [isClearModalOpen, setIsClearModalOpen] = React.useState(false);
             const [clearAuthPass, setClearAuthPass] = React.useState('');
             const [clearAuthError, setClearAuthError] = React.useState('');
@@ -1098,7 +1092,6 @@
                     setColumnWarning(null);
                 }
 
-                // Identificar de qué asesor(es) es este bloque recién pegado para mostrarlo en el botón Deshacer
                 const detectedAdvisors = [...new Set(
                     extractedRows
                         .map(r => {
@@ -1117,7 +1110,6 @@
 
                 setGridRows(prevGrid => {
                     const existingOccupied = prevGrid.filter(r => !isRowEmpty(r));
-                    // Guardamos instantánea en la pila de deshacer antes de agregar el nuevo bloque
                     setBatchHistory(prevHist => [
                         ...prevHist.slice(-19),
                         {
@@ -1147,7 +1139,6 @@
                 });
             }, [statusMap]);
 
-            // DESHACER EL ÚLTIMO BLOQUE AÑADIDO (1 CLIC)
             const handleUndoLastBatch = () => {
                 if (batchHistory.length === 0) return;
                 const lastBatch = batchHistory[batchHistory.length - 1];
@@ -1166,7 +1157,6 @@
                 });
             };
 
-            // ELIMINAR TODAS LAS FILAS DE UN ASESOR ESPECÍFICO
             const handleDeleteAdvisorBlock = (advisorName) => {
                 if (!advisorName) return;
                 const clientsOfAdvisor = clients.filter(c => c.asesor === advisorName);
@@ -1203,7 +1193,6 @@
                 if (asesorFilter === advisorName) setAsesorFilter('Todos');
             };
 
-            // Listener Global Ctrl+V
             React.useEffect(() => {
                 const onGlobalPaste = (e) => {
                     const clipboardData = e.clipboardData || window.clipboardData;
@@ -1240,7 +1229,6 @@
                 });
             }, []);
 
-            // Renderizador de Logo Base64 para PDF
             const [logoBase64, setLogoBase64] = React.useState(null);
             React.useEffect(() => {
                 const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 240" width="180" height="240"><g fill="#59B447"><rect x="90" y="8" width="24" height="13" rx="6.5"/><rect x="71" y="31" width="61" height="13" rx="6.5"/><rect x="50" y="55" width="74" height="13" rx="6.5"/><rect x="31" y="79" width="75" height="13" rx="6.5"/><rect x="24" y="103" width="63" height="13" rx="6.5"/><rect x="37" y="128" width="24" height="13" rx="6.5"/><path d="M143 55 C141 78 130 95 111 107 C96 117 81 122 72 134 C62 147 63 166 70 181 C76 195 87 208 97 216 C107 201 118 189 131 177 C144 166 157 156 164 141 C173 123 173 104 168 89 C164 74 156 62 143 55 Z"/></g></svg>`;
@@ -1258,7 +1246,6 @@
 
             const asesoresList = [...new Set(clients.map(c => String(c.asesor || 'Sin Asesor')))].sort();
 
-            // VALIDACIÓN DE PERMISO DE CAJERO PARA ELIMINAR / LIMPIAR TODA LA BASE
             const confirmClearAllData = (e) => {
                 e.preventDefault();
                 const cleanPass = clearAuthPass.trim();
@@ -1380,8 +1367,6 @@
             const calcCuotaOriVencida = kpiSource.reduce((sum, c) => sum + (Number(c.cuotaOriginalVencida) || 0), 0);
             const calcPrimeraCuotaSinMora = kpiSource.reduce((sum, c) => sum + (Number(c.cuotaMasAntiguaBase) || 0), 0);
             const calcPrimeraCuotaConMora = kpiSource.reduce((sum, c) => sum + (Number(c.cuotaMasAntiguaTotal) || 0), 0);
-            const calcTotalLineasParalelas = kpiSource.filter(c => c.tieneParalela).length;
-            const calcClientesUnicos = new Set(kpiSource.map(c => c.clientKey)).size;
 
             const toggleSelectAll = () => {
                 const allSelected = filteredClients.length > 0 && filteredClients.every(c => c.selected);
@@ -1703,7 +1688,7 @@
             return (
                 <div className="min-h-screen relative bg-slate-100 pb-12 font-sans">
 
-                    {/* MODAL DE CONFIRMACIÓN DE LIMPIEZA GENERAL (VALIDADO CON CONTRASEÑA DE CAJERO) */}
+                    {/* MODAL DE CONFIRMACIÓN DE LIMPIEZA GENERAL */}
                     {isClearModalOpen && (
                         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
                             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-t-4 border-red-600">
@@ -1844,7 +1829,6 @@
                             </div>
 
                             <div className="flex flex-wrap gap-2 items-center">
-                                {/* BOTÓN DESHACER ÚLTIMO BLOQUE AÑADIDO */}
                                 <button
                                     onClick={handleUndoLastBatch}
                                     disabled={!lastBatchInfo}
@@ -1924,7 +1908,7 @@
                                         ⚠️ ADVERTENCIA: NO SE COMPLETARON LAS 19 COLUMNAS REQUERIDAS (SE DETECTARON SOLO {columnWarning.detected} DE {columnWarning.expected} COLUMNAS)
                                     </h4>
                                     <p className="text-xs text-red-100 mt-1">
-                                        Si te equivocaste al copiar este bloque de asesor, pulsa el botón <strong>"↩️ Eliminar Último Bloque"</strong> aquí al lado para deshacerlo de inmediato.
+                                        Si te equivocaste al copiar este bloque de asesor, pulsa el botón <strong>"↩️ Deshacer Este Bloque Ahora"</strong> aquí al lado para deshacerlo de inmediato.
                                     </p>
                                     {columnWarning.missingList && (
                                         <p className="text-xs font-bold text-amber-200 mt-1">
@@ -1975,7 +1959,7 @@
                                 <div className="bg-slate-100 px-4 py-3 border-b border-slate-300 flex flex-wrap justify-between items-center gap-3">
                                     <div className="flex items-center gap-3 flex-wrap">
                                         <span className="bg-[#107c41] text-white px-3 py-1.5 rounded-lg font-extrabold text-xs flex items-center gap-1.5 shadow-sm">
-                                            📗 HOJA EXCEL: 19 COLUMNAS • PEGADO EN BLOQUE ACUMULATIVO
+                                            📗 HOJA EXCEL: 19 COLUMNAS OFICIALES • PEGADO EN BLOQUE ACUMULATIVO
                                         </span>
                                         <p className="text-xs text-slate-700">
                                             Pega asesor por asesor con <kbd className="px-1.5 py-0.5 bg-amber-100 border border-amber-400 rounded font-extrabold text-slate-900">Ctrl + V</kbd>. Si fallas en un bloque, usa <strong>↩️ Eliminar Último Bloque</strong>.
@@ -2043,7 +2027,13 @@
                                                 {EXCEL_COLUMNS.map(col => (
                                                     <th
                                                         key={col.colLetter}
-                                                        className={`${col.width} py-1 text-center ${col.isSeparator ? 'bg-amber-200 text-amber-900' : 'bg-slate-200'}`}
+                                                        className={`${col.width} py-1 text-center ${
+                                                            col.isAtrasoHeader
+                                                                ? 'bg-red-200 text-red-900'
+                                                                : col.isSeparator
+                                                                ? 'bg-amber-200 text-amber-900'
+                                                                : 'bg-slate-200'
+                                                        }`}
                                                     >
                                                         Col {col.num} ({col.colLetter})
                                                     </th>
@@ -2055,7 +2045,13 @@
                                                 {EXCEL_COLUMNS.map(col => (
                                                     <th
                                                         key={col.key}
-                                                        className={`${col.width} py-2 px-2 text-center whitespace-nowrap ${col.isSeparator ? 'bg-amber-600 text-white' : ''}`}
+                                                        className={`${col.width} py-2 px-2 text-center whitespace-nowrap ${
+                                                            col.isAtrasoHeader
+                                                                ? 'bg-red-600 text-white'
+                                                                : col.isSeparator
+                                                                ? 'bg-amber-600 text-white'
+                                                                : ''
+                                                        }`}
                                                     >
                                                         {col.label}
                                                     </th>
@@ -2096,7 +2092,7 @@
                         {/* ========================================================================= */}
                         {activeTab === 'panel' && (
                             <div>
-                                {/* TARJETAS KPI SUPERIORES (SE RECALCULAN AL SELECCIONAR CLIENTES) */}
+                                {/* TARJETAS KPI SUPERIORES */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
                                     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-red-600">
                                         <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
@@ -2169,7 +2165,7 @@
                                     </div>
 
                                     <div className="min-w-[150px]">
-                                        <label className="text-[11px] font-bold text-gray-500 mb-1 block">Asesor a Cargo</label>
+                                        <label className="text-[11px] font-bold text-gray-500 mb-1 block">Asesor a Cargo (Col 19)</label>
                                         <select
                                             className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 text-xs font-semibold"
                                             value={asesorFilter}
@@ -2181,7 +2177,7 @@
                                     </div>
 
                                     <div className="min-w-[175px]">
-                                        <label className="text-[11px] font-bold text-gray-500 mb-1 block">Prioridad de Cobro</label>
+                                        <label className="text-[11px] font-bold text-gray-500 mb-1 block">Prioridad de Cobro (Col 6)</label>
                                         <select
                                             className="w-full border border-blue-300 rounded-lg px-2.5 py-1.5 bg-blue-50 font-bold text-blue-900 text-xs"
                                             value={condicionFilter}
@@ -2238,7 +2234,6 @@
                                             ➖ Contraer
                                         </button>
 
-                                        {/* SELECTOR DE COLUMNAS VISIBLES */}
                                         <div className="relative">
                                             <button
                                                 onClick={() => setIsColMenuOpen(!isColMenuOpen)}
@@ -2296,7 +2291,7 @@
                                     </button>
                                 </div>
 
-                                {/* TABLA GENERAL UNIFICADA CON 1RA CUOTA SIN MORA Y 1RA CUOTA CON MORA */}
+                                {/* TABLA GENERAL UNIFICADA */}
                                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                                     <div className="overflow-x-auto">
                                         <table className="min-w-full divide-y divide-gray-200">
@@ -2339,7 +2334,6 @@
                                                         </th>
                                                     )}
 
-                                                    {/* NUEVAS COLUMNAS SOLICITADAS: 1ERA CUOTA ATRASADA SIN MORA Y 1ERA CUOTA CON MORA */}
                                                     {visibleCols.primeraCuotaSinMora && (
                                                         <th className="px-2.5 py-3 text-right text-xs font-bold text-slate-700 uppercase bg-slate-100/80 border-l border-gray-200">
                                                             1ra Cuota Atr.<br/>(Sin Mora)<br/>
@@ -2448,7 +2442,6 @@
                                                                     </div>
                                                                 </td>
 
-                                                                {/* CUOTAS ATRASADAS + BOTÓN DESPLEGAR INTEGRADO PARA AHORRAR ESPACIO */}
                                                                 <td className="px-2 py-3.5 text-center whitespace-nowrap">
                                                                     <button
                                                                         onClick={() => toggleExpandRow(client.id)}
@@ -2487,14 +2480,12 @@
                                                                     </td>
                                                                 )}
 
-                                                                {/* 1ERA CUOTA ATRASADA SIN MORA */}
                                                                 {visibleCols.primeraCuotaSinMora && (
                                                                     <td className="px-2.5 py-3.5 text-sm text-right font-bold text-slate-800 bg-slate-50/70 border-l border-gray-100 whitespace-nowrap">
                                                                         {client.cuotaMasAntiguaBase > 0 ? `S/ ${client.cuotaMasAntiguaBase.toFixed(2)}` : '-'}
                                                                     </td>
                                                                 )}
 
-                                                                {/* 1ERA CUOTA CON MORA */}
                                                                 {visibleCols.primeraCuotaConMora && (
                                                                     <td className="px-2.5 py-3.5 text-sm text-right font-extrabold text-rose-700 bg-rose-50/40 border-r border-gray-100 whitespace-nowrap">
                                                                         {client.cuotaMasAntiguaTotal > 0 ? `S/ ${client.cuotaMasAntiguaTotal.toFixed(2)}` : '-'}
@@ -2590,13 +2581,13 @@
                                                                             <table className="min-w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
                                                                                 <thead className="bg-slate-800 text-white uppercase text-[10px]">
                                                                                     <tr>
-                                                                                        <th className="py-2 px-3 text-center">N CUOTA (Col 3)</th>
-                                                                                        <th className="py-2 px-3 text-center">ATRASO (Col 5)</th>
+                                                                                        <th className="py-2 px-3 text-center"># CUOTA (Col 5)</th>
+                                                                                        <th className="py-2 px-3 text-center">ATRASO (Col 6)</th>
                                                                                         <th className="py-2 px-3 text-center">Estado de Cuota</th>
-                                                                                        <th className="py-2 px-3 text-right">CUOTA ORIG (Col 16)</th>
-                                                                                        <th className="py-2 px-3 text-right">MORA CUOTA (Col 17)</th>
-                                                                                        <th className="py-2 px-3 text-right">SALDO K CUOTA (Col 8)</th>
-                                                                                        <th className="py-2 px-3 text-right">SALDO- CUOTA (Col 7)</th>
+                                                                                        <th className="py-2 px-3 text-right">CUOTA ORIGINL (Col 16)</th>
+                                                                                        <th className="py-2 px-3 text-right">MORA_CUOTA (Col 17)</th>
+                                                                                        <th className="py-2 px-3 text-right">SALDO K CUOTAS (Col 8)</th>
+                                                                                        <th className="py-2 px-3 text-right">SALDO- CUOTAS (Col 7)</th>
                                                                                     </tr>
                                                                                 </thead>
                                                                                 <tbody className="divide-y divide-slate-200">
@@ -2695,9 +2686,7 @@
                                 return;
                             }
                         }
-                    } catch (err) {
-                        // Intentar siguiente formato de endpoint
-                    }
+                    } catch (err) {}
                 }
 
                 setIsLoadingUsers(false);
